@@ -57,8 +57,8 @@ export function NoteDialog({
   return (
     <Dialog open={Boolean(noteDialog)} onOpenChange={onOpenChange}>
       {noteDialog ? (
-        <DialogContent className="note-dialog grid grid-rows-[auto_minmax(0,1fr)_auto] p-0">
-          <DialogHeader className="settings-header-shadcn">
+        <DialogContent className="grid w-[min(560px,calc(100vw-2rem))] grid-rows-[auto_minmax(0,1fr)_auto] p-0">
+          <DialogHeader>
             <div>
               <DialogTitle>{noteDialog.title}</DialogTitle>
               <DialogDescription>{noteDialog.description}</DialogDescription>
@@ -66,9 +66,9 @@ export function NoteDialog({
             <DialogIconClose />
           </DialogHeader>
 
-          <div className="settings-grid">
+          <div className="grid gap-4 p-5">
             {noteDialog.mode === "rename" ? (
-              <div className="settings-field">
+              <div className="grid gap-2.5 rounded-[10px] border border-[color:var(--outline)] bg-[color:var(--surface-lowest)] p-[14px]">
                 <Label>Markdown path</Label>
                 <Input
                   type="text"
@@ -80,7 +80,7 @@ export function NoteDialog({
               </div>
             ) : (
               <>
-                <div className="settings-field">
+                <div className="grid gap-2.5 rounded-[10px] border border-[color:var(--outline)] bg-[color:var(--surface-lowest)] p-[14px]">
                   <Label>Parent folder</Label>
                   <Select value={noteDirectoryInput} onValueChange={onNoteDirectoryChange}>
                     <SelectTrigger>
@@ -94,13 +94,13 @@ export function NoteDialog({
                       ))}
                     </SelectContent>
                   </Select>
-                  <div className="inline-field">
+                  <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2.5">
                     <Button type="button" variant="secondary" onClick={onUseCurrentFolder}>
                       Use current folder
                     </Button>
                   </div>
                 </div>
-                <div className="settings-field">
+                <div className="grid gap-2.5 rounded-[10px] border border-[color:var(--outline)] bg-[color:var(--surface-lowest)] p-[14px]">
                   <Label>Filename</Label>
                   <Input
                     type="text"
@@ -110,7 +110,7 @@ export function NoteDialog({
                     autoFocus
                   />
                 </div>
-                <div className="settings-field settings-field-wide">
+                <div className="grid gap-2.5 rounded-[10px] border border-[color:var(--outline)] bg-[color:var(--surface-lowest)] p-[14px]">
                   <Label>Resulting path</Label>
                   <Input type="text" value={notePathInput} readOnly />
                 </div>
@@ -118,7 +118,7 @@ export function NoteDialog({
             )}
           </div>
 
-          <DialogFooter className="settings-footer-shadcn">
+          <DialogFooter>
             <DialogClose asChild>
               <Button type="button" variant="secondary">
                 Cancel

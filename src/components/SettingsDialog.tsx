@@ -91,7 +91,7 @@ export function SettingsDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="grid grid-rows-[auto_minmax(0,1fr)_auto] p-0">
-        <DialogHeader className="settings-header-shadcn">
+        <DialogHeader>
           <div>
             <DialogTitle>Settings</DialogTitle>
             <DialogDescription>
@@ -101,10 +101,10 @@ export function SettingsDialog({
           <DialogIconClose />
         </DialogHeader>
 
-        <ScrollArea className="settings-body">
-          <div className="settings-grid">
-            <div className="settings-field">
-              <span>Theme</span>
+        <ScrollArea className="min-h-0">
+          <div className="grid gap-4 p-5">
+            <div className="grid gap-2.5 rounded-[10px] border border-[color:var(--outline)] bg-[color:var(--surface-lowest)] p-[14px]">
+              <span className="text-[color:var(--text)]">Theme</span>
               <Select
                 value={settings.theme}
                 onValueChange={(value) => onUpdateSettings({ theme: value as AppSettings["theme"] })}
@@ -119,12 +119,12 @@ export function SettingsDialog({
               </Select>
             </div>
 
-            <div className="settings-field">
-              <span>Brand logo</span>
+            <div className="grid gap-2.5 rounded-[10px] border border-[color:var(--outline)] bg-[color:var(--surface-lowest)] p-[14px]">
+              <span className="text-[color:var(--text)]">Brand logo</span>
               <div className="flex items-center gap-3">
                 <button
                   type="button"
-                  className="settings-brand-preview"
+                  className="grid h-12 w-12 place-items-center overflow-hidden rounded-[12px] border border-[color:var(--outline)] bg-[color:var(--surface-low)] text-[color:var(--indigo)] transition-[border-color,background-color,transform] hover:-translate-y-px hover:border-[color:var(--outline-strong)] hover:bg-[color:var(--surface-lowest)] focus-visible:outline-none"
                   onClick={onPickBrandLogo}
                   aria-label="Choose custom brand logo"
                 >
@@ -132,10 +132,10 @@ export function SettingsDialog({
                     <img
                       src={settings.brandLogoDataUrl}
                       alt="Selected brand logo"
-                      className="settings-brand-preview-image"
+                      className="h-full w-full object-cover"
                     />
                   ) : (
-                    <PenTool className="icon" />
+                    <PenTool className="icon h-[1.2rem] w-[1.2rem]" />
                   )}
                 </button>
                 <div className="flex flex-wrap gap-2">
@@ -153,7 +153,9 @@ export function SettingsDialog({
                   ) : null}
                 </div>
               </div>
-              <small>Uses a simple pen icon by default. Upload a square logo to personalize the rail brand.</small>
+              <small className="text-[0.78rem] leading-[1.5] text-[color:var(--text-muted)]">
+                Uses a simple pen icon by default. Upload a square logo to personalize the rail brand.
+              </small>
               <input
                 ref={brandLogoInputRef}
                 type="file"
@@ -163,8 +165,8 @@ export function SettingsDialog({
               />
             </div>
 
-            <div className="settings-field">
-              <span>Auto-refresh</span>
+            <div className="grid gap-2.5 rounded-[10px] border border-[color:var(--outline)] bg-[color:var(--surface-lowest)] p-[14px]">
+              <span className="text-[color:var(--text)]">Auto-refresh</span>
               <Select
                 value={String(settings.autoRefreshMs)}
                 onValueChange={(value) => onUpdateSettings({ autoRefreshMs: Number(value) })}
@@ -181,53 +183,61 @@ export function SettingsDialog({
               </Select>
             </div>
 
-            <label className="settings-toggle">
+            <label className="grid grid-cols-[auto_1fr] items-start gap-2.5 rounded-[10px] border border-[color:var(--outline)] bg-[color:var(--surface-lowest)] p-[14px]">
               <Checkbox
                 checked={settings.showToc}
                 onCheckedChange={(checked) => onUpdateSettings({ showToc: checked === true })}
               />
               <div>
-                <strong>Show table of contents</strong>
-                <span>Keep the right-side outline visible while reading.</span>
+                <strong className="text-[color:var(--text)]">Show table of contents</strong>
+                <span className="mt-1 block text-[0.82rem] leading-[1.5] text-[color:var(--text-muted)]">
+                  Keep the right-side outline visible while reading.
+                </span>
               </div>
             </label>
 
-            <label className="settings-toggle">
+            <label className="grid grid-cols-[auto_1fr] items-start gap-2.5 rounded-[10px] border border-[color:var(--outline)] bg-[color:var(--surface-lowest)] p-[14px]">
               <Checkbox
                 checked={settings.sourceWrap}
                 onCheckedChange={(checked) => onUpdateSettings({ sourceWrap: checked === true })}
               />
               <div>
-                <strong>Wrap source lines</strong>
-                <span>Wrap long lines in source mode instead of horizontal scrolling.</span>
+                <strong className="text-[color:var(--text)]">Wrap source lines</strong>
+                <span className="mt-1 block text-[0.82rem] leading-[1.5] text-[color:var(--text-muted)]">
+                  Wrap long lines in source mode instead of horizontal scrolling.
+                </span>
               </div>
             </label>
 
-            <label className="settings-toggle">
+            <label className="grid grid-cols-[auto_1fr] items-start gap-2.5 rounded-[10px] border border-[color:var(--outline)] bg-[color:var(--surface-lowest)] p-[14px]">
               <Checkbox
                 checked={settings.autosave}
                 onCheckedChange={(checked) => onUpdateSettings({ autosave: checked === true })}
               />
               <div>
-                <strong>Autosave changes</strong>
-                <span>Save the current note automatically after a short pause while editing.</span>
+                <strong className="text-[color:var(--text)]">Autosave changes</strong>
+                <span className="mt-1 block text-[0.82rem] leading-[1.5] text-[color:var(--text-muted)]">
+                  Save the current note automatically after a short pause while editing.
+                </span>
               </div>
             </label>
 
-            <label className="settings-toggle">
+            <label className="grid grid-cols-[auto_1fr] items-start gap-2.5 rounded-[10px] border border-[color:var(--outline)] bg-[color:var(--surface-lowest)] p-[14px]">
               <Checkbox
                 checked={viewMode === "source"}
                 onCheckedChange={(checked) => onSetViewMode(checked === true ? "source" : "preview")}
               />
               <div>
-                <strong>Open in source mode</strong>
-                <span>Quickly inspect raw Markdown without switching manually.</span>
+                <strong className="text-[color:var(--text)]">Open in source mode</strong>
+                <span className="mt-1 block text-[0.82rem] leading-[1.5] text-[color:var(--text-muted)]">
+                  Quickly inspect raw Markdown without switching manually.
+                </span>
               </div>
             </label>
 
-            <div className="settings-field settings-field-wide">
-              <span>Toolbar items</span>
-              <div className="settings-toolbar-grid">
+            <div className="grid gap-2.5 rounded-[10px] border border-[color:var(--outline)] bg-[color:var(--surface-lowest)] p-[14px]">
+              <span className="text-[color:var(--text)]">Toolbar items</span>
+              <div className="flex flex-wrap gap-3">
                 <TooltipProvider delayDuration={120}>
                   {toolbarItemOptions.map((item) => {
                     const Icon = item.icon;
@@ -236,7 +246,7 @@ export function SettingsDialog({
                       <button
                         key={item.key}
                         type="button"
-                        className="settings-toolbar-item"
+                        className="group inline-flex items-center justify-center bg-transparent p-0 focus-visible:outline-none"
                         aria-pressed={isSelected}
                         onClick={() =>
                           onUpdateSettings({
@@ -251,12 +261,14 @@ export function SettingsDialog({
                           <TooltipTrigger asChild>
                             <span
                               className={clsx(
-                                "settings-toolbar-icon",
-                                isSelected && "settings-toolbar-icon-selected"
+                                "inline-flex h-8 w-8 items-center justify-center rounded-[10px] border border-[color:var(--outline)] bg-[color:var(--surface-low)] text-[color:var(--text-muted)] transition-[transform,box-shadow,background-color,border-color,color]",
+                                "group-hover:-translate-y-px group-hover:border-[color:var(--outline-strong)] group-hover:bg-[color:var(--surface-lowest)] group-hover:text-[color:var(--text)] group-focus-visible:-translate-y-px group-focus-visible:border-[color:var(--outline-strong)] group-focus-visible:bg-[color:var(--surface-lowest)] group-focus-visible:text-[color:var(--text)]",
+                                isSelected &&
+                                  "border-[color:var(--indigo)] bg-[color:var(--indigo)] text-white shadow-[0_10px_22px_color-mix(in_srgb,var(--indigo)_24%,transparent)]"
                               )}
                               aria-hidden="true"
                             >
-                              <Icon className="h-4.5 w-4.5" />
+                              <Icon className="h-[1.125rem] w-[1.125rem]" />
                             </span>
                           </TooltipTrigger>
                           <TooltipContent>
@@ -274,15 +286,15 @@ export function SettingsDialog({
             </div>
 
             {activeSpace ? (
-              <div className="settings-field settings-field-wide">
-                <span>Space excludes</span>
+              <div className="grid gap-2.5 rounded-[10px] border border-[color:var(--outline)] bg-[color:var(--surface-lowest)] p-[14px]">
+                <span className="text-[color:var(--text)]">Space excludes</span>
                 <Textarea
                   value={excludePathsInput}
                   onChange={(event) => onExcludePathsInputChange(event.target.value)}
                   placeholder={defaultSpaceExcludes.join("\n")}
                   className="min-h-[140px] resize-y"
                 />
-                <small>
+                <small className="text-[0.78rem] leading-[1.5] text-[color:var(--text-muted)]">
                   One path per line. Matching folders are skipped during scan, search, summaries,
                   and git badges.
                 </small>
@@ -291,7 +303,7 @@ export function SettingsDialog({
           </div>
         </ScrollArea>
 
-        <DialogFooter className="settings-footer-shadcn justify-between">
+        <DialogFooter className="justify-between">
           <div>
             {activeSpace ? (
               <Button type="button" variant="secondary" onClick={onSaveSpaceExcludes}>

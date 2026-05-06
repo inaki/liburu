@@ -162,23 +162,40 @@ export function DocumentWorkspace({
         onOpenSettings={onOpenSettings}
       />
 
-      <div className="preview-content-shell">
-        <section className="preview-canvas">
-          {error ? <div className="error-banner">{error}</div> : null}
+      <div className="grid min-h-0 min-w-0 grid-cols-[minmax(0,1fr)_260px] overflow-hidden max-[1200px]:grid-cols-[minmax(0,1fr)]">
+        <section
+          className="relative min-h-0 min-w-0 overflow-hidden bg-[color:var(--bg)]"
+          style={{
+            backgroundImage:
+              "radial-gradient(circle at center, var(--page-dot) 1px, transparent 1px)",
+            backgroundPosition: "0 0",
+            backgroundSize: "24px 24px"
+          }}
+        >
+          {error ? (
+            <div className="mx-[42px] mt-[18px] rounded-[8px] border border-[rgba(255,180,171,0.28)] bg-[rgba(147,0,10,0.35)] px-[14px] py-3 text-[color:var(--danger)]">
+              {error}
+            </div>
+          ) : null}
 
           {selectedFile ? (
             isLoadingFile ? (
-              <div className="design-empty-state">Loading file…</div>
+              <div className="px-4 py-[18px] text-[0.84rem] text-[color:var(--text-muted)]">
+                Loading file…
+              </div>
             ) : (
-              <div className="preview-scroll" ref={previewScrollRef}>
-                <div className="preview-breadcrumb">
-                  <Warehouse className="icon" />
+              <div className="h-full overflow-auto px-[42px] pb-[42px] pt-[18px]" ref={previewScrollRef}>
+                <div className="mb-5 flex items-center gap-2 text-[0.74rem] text-[color:var(--text-muted)]">
+                  <Warehouse className="icon h-4 w-4" />
                   <span>/</span>
                   <span>{selectedFile.relative_path}</span>
                   {toolbar.bookmark ? (
                     <button
                       type="button"
-                      className={clsx("breadcrumb-bookmark", bookmarks.includes(selectedFile.path) && "active")}
+                      className={clsx(
+                        "ml-1 inline-flex h-6 w-6 items-center justify-center rounded-full border-0 bg-transparent text-[color:var(--text-dim)] transition-[color,background-color,transform] hover:-translate-y-px hover:bg-[color:var(--surface-low)] hover:text-[color:var(--text)] focus-visible:-translate-y-px focus-visible:bg-[color:var(--surface-low)] focus-visible:text-[color:var(--text)] focus-visible:outline-none",
+                        bookmarks.includes(selectedFile.path) && "text-[color:var(--indigo)]"
+                      )}
                       aria-label="Bookmark"
                       onClick={() => onToggleBookmark(selectedFile)}
                     >
@@ -190,7 +207,13 @@ export function DocumentWorkspace({
                   ) : null}
                 </div>
                 {viewMode === "preview" ? (
-                  <Suspense fallback={<div className="design-empty-state">Rendering preview…</div>}>
+                  <Suspense
+                    fallback={
+                      <div className="px-4 py-[18px] text-[0.84rem] text-[color:var(--text-muted)]">
+                        Rendering preview…
+                      </div>
+                    }
+                  >
                     <MarkdownPreview content={draftContent} />
                   </Suspense>
                 ) : (
@@ -204,33 +227,47 @@ export function DocumentWorkspace({
               </div>
             )
           ) : (
-            <div className="design-empty-hero">
-              <div className="empty-hero-icon">
-                <Pencil className="icon" />
+            <div className="grid h-full content-start justify-items-center gap-[18px] overflow-auto px-8 pb-12 pt-[84px] text-center">
+              <div className="grid h-[122px] w-[122px] place-items-center rounded-[18px] border border-[color:var(--outline-strong)] bg-[color:var(--surface-highest)] text-[color:var(--indigo-soft)]">
+                <Pencil className="icon h-8 w-8" />
               </div>
-              <h3>No file selected</h3>
-              <p>
+              <h3 className="m-0 text-2xl tracking-[-0.02em]">No file selected</h3>
+              <p className="m-0 max-w-[640px] leading-[1.6] text-[color:var(--text-muted)]">
                 Select a markdown file from the explorer on the left to start viewing its rendered
                 content.
               </p>
-              <div className="empty-hero-grid">
-                <button type="button" className="empty-card" onClick={() => void onCreateNote()}>
-                  <strong>New Document</strong>
-                  <span>Create a new markdown note inside the current space.</span>
-                </button>
-                <button type="button" className="empty-card" onClick={() => void onCreateJournal()}>
-                  <strong>Daily Journal</strong>
-                  <span>Create a dated note inside the journal folder structure.</span>
+              <div className="mt-2 grid grid-cols-[repeat(2,minmax(220px,310px))] gap-5 max-[960px]:grid-cols-[1fr]">
+                <button
+                  type="button"
+                  className="grid gap-2 rounded-[12px] border border-[color:var(--outline-strong)] bg-[color:var(--empty-card-bg)] p-5 text-left text-[color:var(--text)]"
+                  onClick={() => void onCreateNote()}
+                >
+                  <strong className="text-[0.95rem]">New Document</strong>
+                  <span className="leading-[1.5] text-[color:var(--text-muted)]">
+                    Create a new markdown note inside the current space.
+                  </span>
                 </button>
                 <button
                   type="button"
-                  className="empty-card"
+                  className="grid gap-2 rounded-[12px] border border-[color:var(--outline-strong)] bg-[color:var(--empty-card-bg)] p-5 text-left text-[color:var(--text)]"
+                  onClick={() => void onCreateJournal()}
+                >
+                  <strong className="text-[0.95rem]">Daily Journal</strong>
+                  <span className="leading-[1.5] text-[color:var(--text-muted)]">
+                    Create a dated note inside the journal folder structure.
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  className="grid gap-2 rounded-[12px] border border-[color:var(--outline-strong)] bg-[color:var(--empty-card-bg)] p-5 text-left text-[color:var(--text)]"
                   onClick={() =>
                     onShowNotice("Arrow keys move focus. Enter opens the selected file.")
                   }
                 >
-                  <strong>Keyboard Shortcuts</strong>
-                  <span>Use arrow keys in the explorer and press Enter to open.</span>
+                  <strong className="text-[0.95rem]">Keyboard Shortcuts</strong>
+                  <span className="leading-[1.5] text-[color:var(--text-muted)]">
+                    Use arrow keys in the explorer and press Enter to open.
+                  </span>
                 </button>
               </div>
             </div>

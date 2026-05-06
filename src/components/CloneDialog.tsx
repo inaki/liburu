@@ -40,8 +40,8 @@ export function CloneDialog({
   return (
     <Dialog open={Boolean(cloneDialog)} onOpenChange={onOpenChange}>
       {cloneDialog ? (
-        <DialogContent className="note-dialog grid grid-rows-[auto_minmax(0,1fr)_auto] p-0">
-          <DialogHeader className="settings-header-shadcn">
+        <DialogContent className="grid w-[min(560px,calc(100vw-2rem))] grid-rows-[auto_minmax(0,1fr)_auto] p-0">
+          <DialogHeader>
             <div>
               <DialogTitle>Clone Repository</DialogTitle>
               <DialogDescription>
@@ -51,8 +51,8 @@ export function CloneDialog({
             <DialogIconClose />
           </DialogHeader>
 
-          <div className="settings-grid">
-            <div className="settings-field">
+          <div className="grid gap-4 p-5">
+            <div className="grid gap-2.5 rounded-[10px] border border-[color:var(--outline)] bg-[color:var(--surface-lowest)] p-[14px]">
               <Label>Repository URL</Label>
               <Input
                 type="text"
@@ -63,9 +63,9 @@ export function CloneDialog({
               />
             </div>
 
-            <div className="settings-field">
+            <div className="grid gap-2.5 rounded-[10px] border border-[color:var(--outline)] bg-[color:var(--surface-lowest)] p-[14px]">
               <Label>Destination Folder</Label>
-              <div className="inline-field">
+              <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2.5">
                 <Input
                   type="text"
                   value={cloneDialog.destinationParent}
@@ -78,7 +78,7 @@ export function CloneDialog({
               </div>
             </div>
 
-            <div className="settings-field">
+            <div className="grid gap-2.5 rounded-[10px] border border-[color:var(--outline)] bg-[color:var(--surface-lowest)] p-[14px]">
               <Label>Local Folder Name</Label>
               <Input
                 type="text"
@@ -89,7 +89,7 @@ export function CloneDialog({
             </div>
           </div>
 
-          <DialogFooter className="settings-footer-shadcn">
+          <DialogFooter>
             <DialogClose asChild>
               <Button type="button" variant="secondary">
                 Cancel
