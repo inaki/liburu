@@ -5,12 +5,14 @@ import clsx from "clsx";
 import {
   Bookmark,
   CalendarDays,
+  Copy,
   ChevronDown,
   ChevronRight,
   Download,
   FileText,
   FilePlus2,
   Folder,
+  FolderOpen,
   HelpCircle,
   Info,
   LayoutGrid,
@@ -23,11 +25,13 @@ import {
   Share2,
   SquareTerminal,
   Star,
+  TerminalSquare,
   Trash2,
   UserCircle2,
   Warehouse
 } from "lucide-react";
 import { useWorkspace } from "./features/spaces/useWorkspace";
+import { DEFAULT_SPACE_EXCLUDES, getSpaceLabel, normalizeExcludePaths } from "./features/spaces/storage";
 
 type MdFile = {
   path: string;
@@ -79,6 +83,11 @@ type GitRepoInfo = {
   remote_url: string | null;
 };
 
+type GitFileStatus = {
+  relative_path: string;
+  status: string;
+};
+
 type RecentNote = {
   path: string;
   relativePath: string;
@@ -91,6 +100,7 @@ type AppSettings = {
   theme: "dark" | "light";
   showToc: boolean;
   sourceWrap: boolean;
+  autosave: boolean;
   autoRefreshMs: number;
 };
 
@@ -144,6 +154,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   theme: "dark",
   showToc: true,
   sourceWrap: true,
+  autosave: false,
   autoRefreshMs: AUTO_REFRESH_MS
 };
 
@@ -160,6 +171,56 @@ function formatTodayPath(date = new Date()) {
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
   return `journal/${year}/${month}/${year}-${month}-${day}.md`;
+}
+
+function splitNotePath(path: string) {
+  const normalized = path.trim().replace(/\\/g, "/");
+  const parts = normalized.split("/").filter(Boolean);
+  if (parts.length === 0) {
+    return { directory: "", name: "" };
+  }
+
+  const name = parts.pop() ?? "";
+  return {
+    directory: parts.join("/"),
+    name
+  };
+}
+
+function joinNotePath(directory: string, name: string) {
+  const normalizedDirectory = directory.trim().replace(/\\/g, "/").replace(/^\/+|\/+$/g, "");
+  const normalizedName = name.trim().replace(/\\/g, "/").replace(/^\/+/, "");
+  if (!normalizedDirectory) {
+    return normalizedName;
+  }
+
+  return normalizedName ? `${normalizedDirectory}/${normalizedName}` : normalizedDirectory;
+}
+
+function getParentDirectory(path: string | null | undefined) {
+  if (!path) {
+    return "";
+  }
+
+  const normalized = path.replace(/\\/g, "/").replace(/\/+$/g, "");
+  const index = normalized.lastIndexOf("/");
+  return index === -1 ? "" : normalized.slice(0, index);
+}
+
+function listDirectoryOptions(files: MdFile[]) {
+  const directories = new Set<string>(["", "notes", "journal", "notes/ideas", "notes/meetings"]);
+
+  for (const file of files) {
+    const segments = file.relative_path.split("/").filter(Boolean);
+    segments.pop();
+    let current = "";
+    for (const segment of segments) {
+      current = current ? `${current}/${segment}` : segment;
+      directories.add(current);
+    }
+  }
+
+  return Array.from(directories).sort((left, right) => left.localeCompare(right));
 }
 
 function prettifyNoteTitle(path: string) {
@@ -217,6 +278,15 @@ template: journal
 ## Next
 
 `;
+}
+
+function formatExcludePathsInput(value: string) {
+  return normalizeExcludePaths(
+    value
+      .split(/\r?\n|,/)
+      .map((item) => item.trim())
+      .filter(Boolean)
+  );
 }
 
 function buildIdeaTemplate(path: string) {
@@ -419,6 +489,8 @@ function extractHeadings(content: string): HeadingItem[] {
 
 type TreeProps = {
   rows: VisibleTreeRow[];
+  gitStatuses: Record<string, string>;
+  dirtyPath: string | null;
   expanded: Set<string>;
   selectedPath: string | null;
   focusedPath: string | null;
@@ -429,6 +501,8 @@ type TreeProps = {
 
 function TreeBranch({
   rows,
+  gitStatuses,
+  dirtyPath,
   expanded,
   selectedPath,
   focusedPath,
@@ -441,6 +515,7 @@ function TreeBranch({
       {rows.map((row) => {
         const isSelected = selectedPath === row.path;
         const isFocused = focusedPath === row.path;
+        const isDirty = dirtyPath === row.path;
         const indent = { paddingLeft: `${row.depth * 18 + 14}px` };
 
         if (row.kind === "directory") {
@@ -484,6 +559,12 @@ function TreeBranch({
             <span className="explorer-row-icon spacer" />
             <FileText className="icon explorer-row-icon file" />
             <span className="explorer-row-label">{row.name}</span>
+            {isDirty ? <span className="dirty-indicator" aria-label="Unsaved changes" /> : null}
+            {gitStatuses[row.path] ? (
+              <span className={clsx("git-status-badge", `git-status-${gitStatuses[row.path]}`)}>
+                {gitStatuses[row.path]}
+              </span>
+            ) : null}
           </button>
         );
       })}
@@ -522,13 +603,27 @@ export default function App() {
   const [noteDialog, setNoteDialog] = useState<NoteDialogState>(null);
   const [cloneDialog, setCloneDialog] = useState<CloneDialogState | null>(null);
   const [notePathInput, setNotePathInput] = useState("");
+  const [noteDirectoryInput, setNoteDirectoryInput] = useState("");
+  const [noteNameInput, setNoteNameInput] = useState("");
+  const [excludePathsInput, setExcludePathsInput] = useState("");
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
   const [gitInfos, setGitInfos] = useState<Record<string, GitRepoInfo>>({});
+  const [gitStatuses, setGitStatuses] = useState<Record<string, string>>({});
   const resizeState = useRef<{ startX: number; startWidth: number } | null>(null);
   const previewScrollRef = useRef<HTMLDivElement | null>(null);
   const hasAutoOpenedActiveSpace = useRef(false);
-  const { hydrated, spaces, activeSpace, activeSpaceId, upsertSpace, setActiveSpaceId, clearWorkspace } =
-    useWorkspace();
+  const {
+    hydrated,
+    spaces,
+    activeSpace,
+    activeSpaceId,
+    upsertSpace,
+    setActiveSpaceId,
+    renameSpace,
+    updateSpaceExcludes,
+    removeSpace,
+    clearWorkspace
+  } = useWorkspace();
 
   const tree = useMemo(() => buildTree(files), [files]);
   const visibleRows = useMemo(
@@ -546,9 +641,32 @@ export default function App() {
     [bookmarks, recentNotes]
   );
   const activeGitInfo = activeSpaceId ? gitInfos[activeSpaceId] : undefined;
+  const activeExcludePaths = activeSpace?.excludePaths ?? DEFAULT_SPACE_EXCLUDES;
+  const focusedRow = useMemo(
+    () => visibleRows.find((row) => row.path === focusedPath) ?? null,
+    [focusedPath, visibleRows]
+  );
+  const currentFolder = useMemo(() => {
+    if (focusedRow?.kind === "directory") {
+      return focusedRow.path;
+    }
+
+    if (selectedFile?.relative_path) {
+      return getParentDirectory(selectedFile.relative_path);
+    }
+
+    return "";
+  }, [focusedRow, selectedFile]);
+  const directoryOptions = useMemo(() => {
+    const options = new Set(listDirectoryOptions(files));
+    if (currentFolder) {
+      options.add(currentFolder);
+    }
+    return Array.from(options).sort((left, right) => left.localeCompare(right));
+  }, [currentFolder, files]);
   const projectName = useMemo(() => {
-    if (activeSpace?.name) {
-      return activeSpace.name;
+    if (activeSpace) {
+      return getSpaceLabel(activeSpace);
     }
 
     if (!rootPath) {
@@ -557,8 +675,9 @@ export default function App() {
 
     const pieces = rootPath.split(/[\\/]/).filter(Boolean);
     return pieces[pieces.length - 1] ?? rootPath;
-  }, [activeSpace?.name, rootPath]);
+  }, [activeSpace, rootPath]);
   const isDirty = selectedFile !== null && draftContent !== content;
+  const dirtyRelativePath = isDirty ? selectedFile?.relative_path ?? null : null;
 
   useEffect(() => {
     const stored = window.localStorage.getItem(BOOKMARKS_KEY);
@@ -647,7 +766,14 @@ export default function App() {
     }
 
     setNotePathInput(noteDialog.initialPath);
+    const parts = splitNotePath(noteDialog.initialPath);
+    setNoteDirectoryInput(parts.directory);
+    setNoteNameInput(parts.name);
   }, [noteDialog]);
+
+  useEffect(() => {
+    setExcludePathsInput(activeExcludePaths.join("\n"));
+  }, [activeExcludePaths]);
 
   useEffect(() => {
     if (spaces.length === 0) {
@@ -695,7 +821,11 @@ export default function App() {
 
     const timeoutId = window.setTimeout(() => {
       setIsSearching(true);
-      void invoke<SearchResult[]>("search_markdown", { path: rootPath, query })
+      void invoke<SearchResult[]>("search_markdown", {
+        path: rootPath,
+        query,
+        excludePaths: activeExcludePaths
+      })
         .then((results) => setSearchResults(results))
         .catch((searchError) =>
           setError(searchError instanceof Error ? searchError.message : String(searchError))
@@ -704,7 +834,34 @@ export default function App() {
     }, 160);
 
     return () => window.clearTimeout(timeoutId);
-  }, [rootPath, searchQuery]);
+  }, [activeExcludePaths, rootPath, searchQuery]);
+
+  useEffect(() => {
+    if (!rootPath) {
+      setGitStatuses({});
+      return;
+    }
+
+    let cancelled = false;
+
+    void invoke<GitFileStatus[]>("get_git_statuses", { path: rootPath, excludePaths: activeExcludePaths })
+      .then((results) => {
+        if (cancelled) {
+          return;
+        }
+
+        setGitStatuses(Object.fromEntries(results.map((item) => [item.relative_path, item.status])));
+      })
+      .catch((statusError) => {
+        if (!cancelled) {
+          setError(statusError instanceof Error ? statusError.message : String(statusError));
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeExcludePaths, rootPath, files.length, content]);
 
   useEffect(() => {
     if (currentView !== "search") {
@@ -726,12 +883,13 @@ export default function App() {
         spaces.map(async (space) => {
           const results = await invoke<SearchResult[]>("search_markdown", {
             path: space.localPath,
-            query
+            query,
+            excludePaths: space.excludePaths
           });
 
           return {
             spaceId: space.id,
-            spaceName: space.name,
+            spaceName: getSpaceLabel(space),
             localPath: space.localPath,
             results
           } satisfies WorkspaceSearchGroup;
@@ -772,7 +930,10 @@ export default function App() {
 
     void Promise.all(
       spaces.map(async (space) => {
-        const summary = await invoke<SpaceSummary>("summarize_space", { path: space.localPath });
+        const summary = await invoke<SpaceSummary>("summarize_space", {
+          path: space.localPath,
+          excludePaths: space.excludePaths
+        });
         return [space.id, summary] as const;
       })
     )
@@ -829,6 +990,18 @@ export default function App() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [draftContent, content, selectedFile]);
 
+  useEffect(() => {
+    if (!settings.autosave || !isDirty || !selectedFile || isSavingFile) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      void handleSaveCurrentFile({ silent: true });
+    }, 900);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [draftContent, isDirty, isSavingFile, selectedFile, settings.autosave]);
+
   async function selectRootDirectory() {
     setError("");
     const selected = await open({
@@ -852,6 +1025,7 @@ export default function App() {
       silent?: boolean;
       allowDirty?: boolean;
       activateView?: boolean;
+      excludePathsOverride?: string[];
     }
   ) {
     const preserveSelection = options?.preserveSelection ?? false;
@@ -859,6 +1033,7 @@ export default function App() {
     const silent = options?.silent ?? false;
     const allowDirty = options?.allowDirty ?? false;
     const activateView = options?.activateView ?? !silent;
+    const excludePathsOverride = options?.excludePathsOverride;
     if (isDirty && !allowDirty) {
       if (silent) {
         return;
@@ -887,7 +1062,11 @@ export default function App() {
     }
 
     try {
-      const scanned = await invoke<MdFile[]>("scan_directory", { path });
+      const spaceForPath = spaces.find((space) => space.localPath === path);
+      const scanned = await invoke<MdFile[]>("scan_directory", {
+        path,
+        excludePaths: excludePathsOverride ?? spaceForPath?.excludePaths ?? DEFAULT_SPACE_EXCLUDES
+      });
       const nextSelectedFile = preserveSelection
         ? scanned.find((file) => file.relative_path === previousSelectedPath) ?? scanned[0] ?? null
         : scanned[0] ?? null;
@@ -929,6 +1108,40 @@ export default function App() {
         setIsLoadingTree(false);
       }
     }
+  }
+
+  function handleSaveSpaceExcludes() {
+    if (!activeSpace) {
+      showNotice("Open a space first");
+      return;
+    }
+
+    const nextExcludes = formatExcludePathsInput(excludePathsInput);
+    updateSpaceExcludes(activeSpace.id, nextExcludes);
+    if (rootPath === activeSpace.localPath) {
+      void scanRoot(activeSpace.localPath, {
+        preserveSelection: true,
+        resetSearch: false,
+        allowDirty: true,
+        silent: true,
+        excludePathsOverride: nextExcludes
+      });
+    }
+    showNotice("Space excludes updated");
+  }
+
+  function handleNoteDirectoryChange(nextDirectory: string) {
+    setNoteDirectoryInput(nextDirectory);
+    setNotePathInput(joinNotePath(nextDirectory, noteNameInput));
+  }
+
+  function handleNoteNameChange(nextName: string) {
+    setNoteNameInput(nextName);
+    setNotePathInput(joinNotePath(noteDirectoryInput, nextName));
+  }
+
+  function handleUseCurrentFolder() {
+    handleNoteDirectoryChange(currentFolder);
   }
 
   async function loadFile(file: MdFile, options?: { silent?: boolean }) {
@@ -1239,6 +1452,89 @@ export default function App() {
     setCurrentView("home");
   }
 
+  function handleRenameSpace(spaceId: string) {
+    const space = spaces.find((item) => item.id === spaceId);
+    if (!space) {
+      return;
+    }
+
+    const nextLabel = window.prompt("Space label", getSpaceLabel(space));
+    if (nextLabel === null) {
+      return;
+    }
+
+    renameSpace(spaceId, nextLabel);
+    showNotice("Space label updated");
+  }
+
+  function handleRemoveSpace(spaceId: string) {
+    const space = spaces.find((item) => item.id === spaceId);
+    if (!space) {
+      return;
+    }
+
+    const shouldRemove = window.confirm(
+      `Remove "${getSpaceLabel(space)}" from the app? Local files will stay on disk.`
+    );
+    if (!shouldRemove) {
+      return;
+    }
+
+    const removingActive = activeSpaceId === spaceId;
+    removeSpace(spaceId);
+
+    if (removingActive) {
+      setCurrentView("home");
+      setRootPath("");
+      setFiles([]);
+      setSelectedFile(null);
+      setContent("");
+      setDraftContent("");
+      setExpanded(new Set());
+      setFocusedPath(null);
+      setSearchQuery("");
+    }
+
+    showNotice("Space removed");
+  }
+
+  async function handleRevealSpace(spaceId: string) {
+    const space = spaces.find((item) => item.id === spaceId);
+    if (!space) {
+      return;
+    }
+
+    try {
+      await invoke("reveal_in_file_manager", { path: space.localPath });
+      showNotice("Opened in Finder");
+    } catch (revealError) {
+      setError(revealError instanceof Error ? revealError.message : String(revealError));
+    }
+  }
+
+  async function handleOpenSpaceTerminal(spaceId: string) {
+    const space = spaces.find((item) => item.id === spaceId);
+    if (!space) {
+      return;
+    }
+
+    try {
+      await invoke("open_space_in_terminal", { path: space.localPath });
+      showNotice("Opened in Terminal");
+    } catch (terminalError) {
+      setError(terminalError instanceof Error ? terminalError.message : String(terminalError));
+    }
+  }
+
+  async function handleCopySpacePath(spaceId: string) {
+    const space = spaces.find((item) => item.id === spaceId);
+    if (!space) {
+      return;
+    }
+
+    await copyText(space.localPath, "Space path copied");
+  }
+
   function handleOpenWorkspaceSearch() {
     setCurrentView("search");
   }
@@ -1259,14 +1555,20 @@ export default function App() {
     window.setTimeout(() => handleSelect(result.relative_path), 0);
   }
 
-  async function handleSaveCurrentFile() {
+  async function handleSaveCurrentFile(options?: { silent?: boolean }) {
+    const silent = options?.silent ?? false;
+
     if (!selectedFile) {
-      showNotice("Open a file first");
+      if (!silent) {
+        showNotice("Open a file first");
+      }
       return;
     }
 
     if (!isDirty) {
-      showNotice("No changes to save");
+      if (!silent) {
+        showNotice("No changes to save");
+      }
       return;
     }
 
@@ -1279,7 +1581,9 @@ export default function App() {
         content: draftContent
       });
       setContent(draftContent);
-      showNotice("Markdown saved");
+      if (!silent) {
+        showNotice("Markdown saved");
+      }
     } catch (writeError) {
       setError(writeError instanceof Error ? writeError.message : String(writeError));
     } finally {
@@ -1303,8 +1607,7 @@ export default function App() {
       }
     }
 
-    const suggestedPath =
-      selectedFile?.relative_path.replace(/\.(md|markdown)$/i, "-copy.md") ?? "notes/untitled.md";
+    const suggestedPath = joinNotePath(currentFolder || "notes", "untitled.md");
 
     setNoteDialog({
       mode: "create",
@@ -1332,8 +1635,17 @@ export default function App() {
       }
     }
 
-    const initialPath =
-      template === "idea" ? `notes/ideas/${formatIsoDate()}-untitled.md` : `notes/meetings/${formatIsoDate()}-meeting.md`;
+    const defaultDirectory =
+      template === "idea"
+        ? currentFolder.includes("ideas")
+          ? currentFolder
+          : "notes/ideas"
+        : currentFolder.includes("meet")
+          ? currentFolder
+          : "notes/meetings";
+    const defaultName =
+      template === "idea" ? `${formatIsoDate()}-untitled.md` : `${formatIsoDate()}-meeting.md`;
+    const initialPath = joinNotePath(defaultDirectory, defaultName);
 
     setNoteDialog({
       mode: "create",
@@ -1385,13 +1697,18 @@ export default function App() {
       }
     }
 
+    const todayPath = formatTodayPath();
+    const defaultJournalDirectory = currentFolder.startsWith("journal/")
+      ? currentFolder
+      : getParentDirectory(todayPath);
+
     setNoteDialog({
       mode: "journal",
       template: "journal",
       title: "Create Journal Entry",
       description: "Create a dated note inside the journal folder structure.",
       confirmLabel: "Create Entry",
-      initialPath: formatTodayPath()
+      initialPath: joinNotePath(defaultJournalDirectory, splitNotePath(todayPath).name)
     });
   }
 
@@ -1427,7 +1744,10 @@ export default function App() {
       return;
     }
 
-    const requestedPath = notePathInput.trim();
+    const requestedPath =
+      noteDialog.mode === "rename"
+        ? notePathInput.trim()
+        : joinNotePath(noteDirectoryInput, noteNameInput).trim();
     if (!requestedPath) {
       setError("A file path is required");
       return;
@@ -1777,6 +2097,8 @@ export default function App() {
             ) : activePanel === "explorer" && files.length > 0 ? (
               <TreeBranch
                 rows={visibleRows}
+                gitStatuses={gitStatuses}
+                dirtyPath={dirtyRelativePath}
                 expanded={expanded}
                 selectedPath={selectedFile?.relative_path ?? null}
                 focusedPath={focusedPath}
@@ -1799,6 +2121,14 @@ export default function App() {
                     <span className="explorer-row-icon spacer" />
                     <Bookmark className="icon explorer-row-icon file" />
                     <span className="explorer-row-label">{file.relative_path}</span>
+                    {dirtyRelativePath === file.relative_path ? (
+                      <span className="dirty-indicator" aria-label="Unsaved changes" />
+                    ) : null}
+                    {gitStatuses[file.relative_path] ? (
+                      <span className={clsx("git-status-badge", `git-status-${gitStatuses[file.relative_path]}`)}>
+                        {gitStatuses[file.relative_path]}
+                      </span>
+                    ) : null}
                   </button>
                 ))
               ) : (
@@ -1815,6 +2145,10 @@ export default function App() {
                   <strong>{rootPath || "Not selected"}</strong>
                 </div>
                 <div className="metadata-item">
+                  <span>Excluded paths</span>
+                  <strong>{activeExcludePaths.join(", ")}</strong>
+                </div>
+                <div className="metadata-item">
                   <span>Markdown files</span>
                   <strong>{files.length}</strong>
                 </div>
@@ -1825,6 +2159,12 @@ export default function App() {
                 <div className="metadata-item">
                   <span>Current file</span>
                   <strong>{selectedFile?.relative_path || "None"}</strong>
+                </div>
+                <div className="metadata-item">
+                  <span>Git Status</span>
+                  <strong>
+                    {selectedFile ? gitStatuses[selectedFile.relative_path] || "clean" : "None"}
+                  </strong>
                 </div>
                 <div className="metadata-item">
                   <span>Title</span>
@@ -1884,15 +2224,57 @@ export default function App() {
           <div className="recent-roots-list">
             {spaces.length > 0 ? (
               spaces.map((space) => (
-                <button
+                <div
                   key={space.id}
-                  type="button"
                   className={clsx("recent-root-item", activeSpace?.id === space.id && "active")}
-                  onClick={() => handleOpenSpace(space.localPath)}
                 >
-                  <span className="recent-root-name">{space.name}</span>
-                  <span className="recent-root-path">{space.localPath}</span>
-                </button>
+                  <button type="button" className="recent-root-main" onClick={() => handleOpenSpace(space.localPath)}>
+                    <span className="recent-root-name">{getSpaceLabel(space)}</span>
+                    <span className="recent-root-path">{space.localPath}</span>
+                  </button>
+                  <span className="recent-root-actions">
+                    <button
+                      type="button"
+                      className="mini-icon-button"
+                      aria-label="Reveal space in Finder"
+                      onClick={() => void handleRevealSpace(space.id)}
+                    >
+                      <FolderOpen className="icon" />
+                    </button>
+                    <button
+                      type="button"
+                      className="mini-icon-button"
+                      aria-label="Open space in Terminal"
+                      onClick={() => void handleOpenSpaceTerminal(space.id)}
+                    >
+                      <TerminalSquare className="icon" />
+                    </button>
+                    <button
+                      type="button"
+                      className="mini-icon-button"
+                      aria-label="Copy space path"
+                      onClick={() => void handleCopySpacePath(space.id)}
+                    >
+                      <Copy className="icon" />
+                    </button>
+                    <button
+                      type="button"
+                      className="mini-icon-button"
+                      aria-label="Rename space"
+                      onClick={() => handleRenameSpace(space.id)}
+                    >
+                      <PencilLine className="icon" />
+                    </button>
+                    <button
+                      type="button"
+                      className="mini-icon-button"
+                      aria-label="Remove space"
+                      onClick={() => handleRemoveSpace(space.id)}
+                    >
+                      <Trash2 className="icon" />
+                    </button>
+                  </span>
+                </div>
               ))
             ) : (
               <div className="recent-root-empty">No spaces added yet.</div>
@@ -1998,15 +2380,60 @@ export default function App() {
                   <div className="home-space-list">
                     {spaces.length > 0 ? (
                       spaces.map((space) => (
-                        <button
-                          key={space.id}
-                          type="button"
-                          className="home-space-card"
-                          onClick={() => handleOpenSpace(space.localPath)}
-                        >
-                          <div className="home-space-topline">
-                            <Folder className="icon" />
-                            <span>{space.name}</span>
+                        <div key={space.id} className="home-space-card">
+                          <div className="home-space-head">
+                            <button
+                              type="button"
+                              className="home-space-main"
+                              onClick={() => handleOpenSpace(space.localPath)}
+                            >
+                              <div className="home-space-topline">
+                                <Folder className="icon" />
+                                <span>{getSpaceLabel(space)}</span>
+                              </div>
+                            </button>
+                            <div className="home-card-actions">
+                              <button
+                                type="button"
+                                className="mini-icon-button"
+                                aria-label="Reveal space in Finder"
+                                onClick={() => void handleRevealSpace(space.id)}
+                              >
+                                <FolderOpen className="icon" />
+                              </button>
+                              <button
+                                type="button"
+                                className="mini-icon-button"
+                                aria-label="Open space in Terminal"
+                                onClick={() => void handleOpenSpaceTerminal(space.id)}
+                              >
+                                <TerminalSquare className="icon" />
+                              </button>
+                              <button
+                                type="button"
+                                className="mini-icon-button"
+                                aria-label="Copy space path"
+                                onClick={() => void handleCopySpacePath(space.id)}
+                              >
+                                <Copy className="icon" />
+                              </button>
+                              <button
+                                type="button"
+                                className="mini-icon-button"
+                                aria-label="Rename space"
+                                onClick={() => handleRenameSpace(space.id)}
+                              >
+                                <PencilLine className="icon" />
+                              </button>
+                              <button
+                                type="button"
+                                className="mini-icon-button"
+                                aria-label="Remove space"
+                                onClick={() => handleRemoveSpace(space.id)}
+                              >
+                                <Trash2 className="icon" />
+                              </button>
+                            </div>
                           </div>
                           {gitInfos[space.id]?.is_repo ? (
                             <div className="home-space-badge">
@@ -2025,7 +2452,7 @@ export default function App() {
                           <div className="home-space-meta">
                             Last opened {new Date(space.lastOpenedAt).toLocaleDateString()}
                           </div>
-                        </button>
+                        </div>
                       ))
                     ) : (
                       <div className="explorer-empty">Add your first space to start building the workspace.</div>
@@ -2212,7 +2639,15 @@ export default function App() {
                     onClick={() => void handleSaveCurrentFile()}
                     disabled={isSavingFile}
                   >
-                    {isSavingFile ? "Saving..." : isDirty ? "Save" : "Saved"}
+                    {isSavingFile
+                      ? settings.autosave && isDirty
+                        ? "Autosaving..."
+                        : "Saving..."
+                      : isDirty
+                        ? settings.autosave
+                          ? "Autosave on"
+                          : "Save"
+                        : "Saved"}
                   </button>
                 ) : null}
                 <button
@@ -2450,6 +2885,18 @@ export default function App() {
               <label className="settings-toggle">
                 <input
                   type="checkbox"
+                  checked={settings.autosave}
+                  onChange={(event) => updateSettings({ autosave: event.target.checked })}
+                />
+                <div>
+                  <strong>Autosave changes</strong>
+                  <span>Save the current note automatically after a short pause while editing.</span>
+                </div>
+              </label>
+
+              <label className="settings-toggle">
+                <input
+                  type="checkbox"
                   checked={viewMode === "source"}
                   onChange={(event) => setViewMode(event.target.checked ? "source" : "preview")}
                 />
@@ -2458,9 +2905,26 @@ export default function App() {
                   <span>Quickly inspect raw Markdown without switching manually.</span>
                 </div>
               </label>
+
+              {activeSpace ? (
+                <label className="settings-field settings-field-wide">
+                  <span>Space excludes</span>
+                  <textarea
+                    value={excludePathsInput}
+                    onChange={(event) => setExcludePathsInput(event.target.value)}
+                    placeholder={DEFAULT_SPACE_EXCLUDES.join("\n")}
+                  />
+                  <small>One path per line. Matching folders are skipped during scan, search, summaries, and git badges.</small>
+                </label>
+              ) : null}
             </div>
 
             <div className="settings-footer">
+              {activeSpace ? (
+                <button type="button" className="secondary-action" onClick={handleSaveSpaceExcludes}>
+                  Save space excludes
+                </button>
+              ) : null}
               <button
                 type="button"
                 className="secondary-action"
@@ -2497,16 +2961,53 @@ export default function App() {
             </div>
 
             <div className="settings-grid">
-              <label className="settings-field">
-                <span>Markdown path</span>
-                <input
-                  type="text"
-                  value={notePathInput}
-                  onChange={(event) => setNotePathInput(event.target.value)}
-                  placeholder="notes/untitled.md"
-                  autoFocus
-                />
-              </label>
+              {noteDialog.mode === "rename" ? (
+                <label className="settings-field">
+                  <span>Markdown path</span>
+                  <input
+                    type="text"
+                    value={notePathInput}
+                    onChange={(event) => setNotePathInput(event.target.value)}
+                    placeholder="notes/untitled.md"
+                    autoFocus
+                  />
+                </label>
+              ) : (
+                <>
+                  <label className="settings-field">
+                    <span>Parent folder</span>
+                    <select
+                      value={noteDirectoryInput}
+                      onChange={(event) => handleNoteDirectoryChange(event.target.value)}
+                    >
+                      {directoryOptions.map((directory) => (
+                        <option key={directory || "root"} value={directory}>
+                          {directory || "Root"}
+                        </option>
+                      ))}
+                    </select>
+                    <div className="inline-field">
+                      <button type="button" className="secondary-action" onClick={handleUseCurrentFolder}>
+                        Use current folder
+                      </button>
+                    </div>
+                  </label>
+                  <label className="settings-field">
+                    <span>Filename</span>
+                    <input
+                      type="text"
+                      value={noteNameInput}
+                      onChange={(event) => handleNoteNameChange(event.target.value)}
+                      placeholder="untitled.md"
+                      autoFocus
+                    />
+                  </label>
+                  <label className="settings-field settings-field-wide">
+                    <span>Resulting path</span>
+                    <input type="text" value={notePathInput} readOnly />
+                  </label>
+                </>
+              )}
             </div>
 
             <div className="settings-footer">

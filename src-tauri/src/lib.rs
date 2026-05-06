@@ -48,9 +48,20 @@ struct CloneResult {
     name: String,
 }
 
+#[derive(Serialize, Clone)]
+struct GitFileStatus {
+    relative_path: String,
+    status: String,
+}
+
 #[command]
-fn scan_directory(path: String, state: State<'_, AppState>) -> Result<Vec<MdFile>, String> {
+fn scan_directory(
+    path: String,
+    exclude_paths: Option<Vec<String>>,
+    state: State<'_, AppState>,
+) -> Result<Vec<MdFile>, String> {
     let root = canonicalize_directory(Path::new(&path))?;
+    let excludes = normalize_excludes(exclude_paths);
     let mut files = Vec::new();
 
     for entry in WalkDir::new(&root)
@@ -58,6 +69,10 @@ fn scan_directory(path: String, state: State<'_, AppState>) -> Result<Vec<MdFile
         .into_iter()
         .filter_map(Result::ok)
     {
+        if should_skip_path(&root, entry.path(), &excludes) {
+            continue;
+        }
+
         if !entry.file_type().is_file() {
             continue;
         }
@@ -254,8 +269,14 @@ fn delete_md_file(path: String, state: State<'_, AppState>) -> Result<(), String
 }
 
 #[command]
-fn search_markdown(path: String, query: String, state: State<'_, AppState>) -> Result<Vec<SearchResult>, String> {
+fn search_markdown(
+    path: String,
+    query: String,
+    exclude_paths: Option<Vec<String>>,
+    state: State<'_, AppState>,
+) -> Result<Vec<SearchResult>, String> {
     let root = canonicalize_directory(Path::new(&path))?;
+    let excludes = normalize_excludes(exclude_paths);
     let needle = query.trim().to_lowercase();
 
     if needle.is_empty() {
@@ -269,6 +290,10 @@ fn search_markdown(path: String, query: String, state: State<'_, AppState>) -> R
         .into_iter()
         .filter_map(Result::ok)
     {
+        if should_skip_path(&root, entry.path(), &excludes) {
+            continue;
+        }
+
         if !entry.file_type().is_file() || !is_markdown_path(entry.path()) {
             continue;
         }
@@ -309,8 +334,13 @@ fn search_markdown(path: String, query: String, state: State<'_, AppState>) -> R
 }
 
 #[command]
-fn summarize_space(path: String, state: State<'_, AppState>) -> Result<SpaceSummary, String> {
+fn summarize_space(
+    path: String,
+    exclude_paths: Option<Vec<String>>,
+    state: State<'_, AppState>,
+) -> Result<SpaceSummary, String> {
     let root = canonicalize_directory(Path::new(&path))?;
+    let excludes = normalize_excludes(exclude_paths);
     let mut note_count = 0usize;
     let mut latest_modified_at: Option<std::time::SystemTime> = None;
 
@@ -319,6 +349,10 @@ fn summarize_space(path: String, state: State<'_, AppState>) -> Result<SpaceSumm
         .into_iter()
         .filter_map(Result::ok)
     {
+        if should_skip_path(&root, entry.path(), &excludes) {
+            continue;
+        }
+
         if !entry.file_type().is_file() || !is_markdown_path(entry.path()) {
             continue;
         }
@@ -450,6 +484,135 @@ fn clone_repository(
     })
 }
 
+#[command]
+fn get_git_statuses(path: String, exclude_paths: Option<Vec<String>>) -> Result<Vec<GitFileStatus>, String> {
+    let root = canonicalize_directory(Path::new(&path))?;
+    let excludes = normalize_excludes(exclude_paths);
+
+    let inside_output = Command::new("git")
+        .args(["-C", &root.to_string_lossy(), "rev-parse", "--is-inside-work-tree"])
+        .output()
+        .map_err(|error| format!("Failed to run git: {error}"))?;
+
+    if !inside_output.status.success()
+        || String::from_utf8_lossy(&inside_output.stdout).trim() != "true"
+    {
+        return Ok(Vec::new());
+    }
+
+    let output = Command::new("git")
+        .args(["-C", &root.to_string_lossy(), "status", "--short", "--untracked-files=all"])
+        .output()
+        .map_err(|error| format!("Failed to run git status: {error}"))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        return Err(if stderr.is_empty() {
+            "git status failed".to_string()
+        } else {
+            stderr
+        });
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let mut results = Vec::new();
+
+    for line in stdout.lines() {
+        if line.len() < 4 {
+            continue;
+        }
+
+        let raw_status = line[..2].trim().to_string();
+        let path_part = line[3..].trim();
+        let relative_path = path_part
+            .split(" -> ")
+            .last()
+            .unwrap_or(path_part)
+            .replace('\\', "/");
+
+        if should_skip_relative_path(&relative_path, &excludes) {
+            continue;
+        }
+
+        if !relative_path.ends_with(".md") && !relative_path.ends_with(".markdown") {
+            continue;
+        }
+
+        results.push(GitFileStatus {
+            relative_path,
+            status: normalize_git_status(&raw_status),
+        });
+    }
+
+    Ok(results)
+}
+
+#[command]
+fn reveal_in_file_manager(path: String) -> Result<(), String> {
+    let target = canonicalize_directory(Path::new(&path))?;
+
+    #[cfg(target_os = "macos")]
+    let mut command = {
+        let mut command = Command::new("open");
+        command.arg(&target);
+        command
+    };
+
+    #[cfg(target_os = "linux")]
+    let mut command = {
+        let mut command = Command::new("xdg-open");
+        command.arg(&target);
+        command
+    };
+
+    #[cfg(target_os = "windows")]
+    let mut command = {
+        let mut command = Command::new("explorer");
+        command.arg(&target);
+        command
+    };
+
+    command
+        .spawn()
+        .map_err(|error| format!("Failed to open file manager: {error}"))?;
+
+    Ok(())
+}
+
+#[command]
+fn open_space_in_terminal(path: String) -> Result<(), String> {
+    let target = canonicalize_directory(Path::new(&path))?;
+
+    #[cfg(target_os = "macos")]
+    let mut command = {
+        let mut command = Command::new("open");
+        command.args(["-a", "Terminal"]);
+        command.arg(&target);
+        command
+    };
+
+    #[cfg(target_os = "linux")]
+    let mut command = {
+        let mut command = Command::new("x-terminal-emulator");
+        command.current_dir(&target);
+        command
+    };
+
+    #[cfg(target_os = "windows")]
+    let mut command = {
+        let mut command = Command::new("cmd");
+        command.args(["/C", "start"]);
+        command.current_dir(&target);
+        command
+    };
+
+    command
+        .spawn()
+        .map_err(|error| format!("Failed to open terminal: {error}"))?;
+
+    Ok(())
+}
+
 fn selected_root(state: &State<'_, AppState>, message: &str) -> Result<PathBuf, String> {
     let selected_root = state
         .selected_root
@@ -492,6 +655,51 @@ fn is_markdown_path(path: &Path) -> bool {
     }
 }
 
+fn normalize_excludes(exclude_paths: Option<Vec<String>>) -> Vec<String> {
+    exclude_paths
+        .unwrap_or_default()
+        .into_iter()
+        .map(|value| value.trim().replace('\\', "/"))
+        .filter(|value| !value.is_empty())
+        .collect()
+}
+
+fn should_skip_path(root: &Path, path: &Path, excludes: &[String]) -> bool {
+    let relative_path = match path.strip_prefix(root) {
+        Ok(value) => value.to_string_lossy().replace('\\', "/"),
+        Err(_) => return false,
+    };
+
+    should_skip_relative_path(&relative_path, excludes)
+}
+
+fn should_skip_relative_path(relative_path: &str, excludes: &[String]) -> bool {
+    let normalized = relative_path.trim_matches('/');
+    if normalized.is_empty() {
+        return false;
+    }
+
+    let segments = normalized.split('/').collect::<Vec<_>>();
+
+    excludes.iter().any(|exclude| {
+        let candidate = exclude.trim().trim_matches('/');
+        if candidate.is_empty() {
+            return false;
+        }
+
+        let candidate_segments = candidate.split('/').collect::<Vec<_>>();
+        if candidate_segments.len() == 1 {
+            return segments.iter().any(|segment| segment == &candidate);
+        }
+
+        if normalized == candidate {
+            return true;
+        }
+
+        normalized.starts_with(&format!("{candidate}/"))
+    })
+}
+
 fn build_search_snippet(content: &str, content_lower: &str, needle: &str) -> String {
     if let Some(index) = content_lower.find(needle) {
         let start = index.saturating_sub(48);
@@ -501,6 +709,29 @@ fn build_search_snippet(content: &str, content_lower: &str, needle: &str) -> Str
     }
 
     String::new()
+}
+
+fn normalize_git_status(raw_status: &str) -> String {
+    if raw_status.contains('U') {
+        return "conflict".to_string();
+    }
+    if raw_status == "??" {
+        return "untracked".to_string();
+    }
+    if raw_status.contains('A') {
+        return "added".to_string();
+    }
+    if raw_status.contains('D') {
+        return "deleted".to_string();
+    }
+    if raw_status.contains('R') {
+        return "renamed".to_string();
+    }
+    if raw_status.contains('M') {
+        return "modified".to_string();
+    }
+
+    "changed".to_string()
 }
 
 fn resolve_new_markdown_path(root: &Path, relative_path: &str) -> Result<PathBuf, String> {
@@ -550,7 +781,10 @@ pub fn run() {
             search_markdown,
             summarize_space,
             get_git_info,
-            clone_repository
+            clone_repository,
+            get_git_statuses,
+            reveal_in_file_manager,
+            open_space_in_terminal
         ])
         .setup(|app| {
             if let Some(window) = app.get_webview_window("main") {

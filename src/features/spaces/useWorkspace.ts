@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { Space, WorkspaceState } from "./models";
-import { createSpace, readWorkspaceState, writeWorkspaceState } from "./storage";
+import { createSpace, normalizeExcludePaths, readWorkspaceState, writeWorkspaceState } from "./storage";
 
 export function useWorkspace() {
   const [workspace, setWorkspace] = useState<WorkspaceState>({
@@ -35,6 +35,7 @@ export function useWorkspace() {
                   name: nextSpace.name,
                   kind: nextSpace.kind,
                   localPath: nextSpace.localPath,
+                  excludePaths: normalizeExcludePaths(space.excludePaths),
                   lastOpenedAt: nextSpace.lastOpenedAt,
                   lastIndexedAt: indexedAt ?? space.lastIndexedAt
                 }
@@ -69,6 +70,45 @@ export function useWorkspace() {
     });
   }
 
+  function renameSpace(spaceId: string, displayName: string) {
+    setWorkspace((current) => ({
+      spaces: current.spaces.map((space) =>
+        space.id === spaceId
+          ? {
+              ...space,
+              displayName: displayName.trim() || undefined
+            }
+          : space
+      ),
+      activeSpaceId: current.activeSpaceId
+    }));
+  }
+
+  function removeSpace(spaceId: string) {
+    setWorkspace((current) => {
+      const spaces = current.spaces.filter((space) => space.id !== spaceId);
+      return {
+        spaces,
+        activeSpaceId:
+          current.activeSpaceId === spaceId ? (spaces[0]?.id ?? null) : current.activeSpaceId
+      };
+    });
+  }
+
+  function updateSpaceExcludes(spaceId: string, excludePaths: string[]) {
+    setWorkspace((current) => ({
+      spaces: current.spaces.map((space) =>
+        space.id === spaceId
+          ? {
+              ...space,
+              excludePaths: normalizeExcludePaths(excludePaths)
+            }
+          : space
+      ),
+      activeSpaceId: current.activeSpaceId
+    }));
+  }
+
   const activeSpace: Space | null =
     workspace.spaces.find((space) => space.id === workspace.activeSpaceId) ?? null;
 
@@ -79,6 +119,9 @@ export function useWorkspace() {
     activeSpace,
     upsertSpace,
     setActiveSpaceId,
+    renameSpace,
+    updateSpaceExcludes,
+    removeSpace,
     clearWorkspace
   };
 }
