@@ -2176,33 +2176,6 @@ export default function App() {
           </button>
         </div>
 
-        <div className="design-sidebar-nav">
-          <button
-            type="button"
-            className={clsx("sidebar-nav-item", activePanel === "explorer" && "active")}
-            onClick={() => setActivePanel("explorer")}
-          >
-            <Folder className="icon" />
-            <span>Explorer</span>
-          </button>
-          <button
-            type="button"
-            className={clsx("sidebar-nav-item", activePanel === "bookmarks" && "active")}
-            onClick={() => setActivePanel("bookmarks")}
-          >
-            <Bookmark className="icon" />
-            <span>Bookmarks</span>
-          </button>
-          <button
-            type="button"
-            className={clsx("sidebar-nav-item", activePanel === "metadata" && "active")}
-            onClick={() => setActivePanel("metadata")}
-          >
-            <Info className="icon" />
-            <span>Metadata</span>
-          </button>
-        </div>
-
         <section className="explorer-panel">
           <div className="explorer-panel-header">
             <span>Workspace Files</span>
