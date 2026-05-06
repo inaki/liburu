@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          "colors": {
+            "surface-dim": "#141313",
+            "surface-tint": "#c6c6c7",
+            "primary": "#ffffff",
+            "secondary-fixed-dim": "#c0c1ff",
+            "tertiary-fixed": "#e7e1dd",
+            "on-tertiary-fixed-variant": "#494643",
+            "surface-container-highest": "#353434",
+            "on-secondary": "#1000a9",
+            "inverse-surface": "#e5e2e1",
+            "error-container": "#93000a",
+            "secondary": "#c0c1ff",
+            "on-primary": "#2f3131",
+            "inverse-primary": "#5d5f5f",
+            "on-tertiary-container": "#676460",
+            "outline": "#8e9192",
+            "on-background": "#e5e2e1",
+            "surface": "#141313",
+            "primary-container": "#e2e2e2",
+            "on-secondary-fixed": "#07006c",
+            "on-error": "#690005",
+            "on-primary-container": "#636565",
+            "tertiary": "#ffffff",
+            "tertiary-container": "#e7e1dd",
+            "on-surface": "#e5e2e1",
+            "error": "#ffb4ab",
+            "on-secondary-fixed-variant": "#2f2ebe",
+            "on-primary-fixed": "#1a1c1c",
+            "surface-container-low": "#1c1b1b",
+            "inverse-on-surface": "#313030",
+            "outline-variant": "#444748",
+            "surface-bright": "#3a3939",
+            "surface-container-high": "#2a2a2a",
+            "primary-fixed": "#e2e2e2",
+            "background": "#141313",
+            "surface-variant": "#353434",
+            "on-primary-fixed-variant": "#454747",
+            "primary-fixed-dim": "#c6c6c7",
+            "on-secondary-container": "#b0b2ff",
+            "on-error-container": "#ffdad6",
+            "on-surface-variant": "#c4c7c8",
+            "tertiary-fixed-dim": "#cbc6c1",
+            "surface-container": "#201f1f",
+            "surface-container-lowest": "#0e0e0e",
+            "on-tertiary": "#32302d",
+            "secondary-fixed": "#e1e0ff",
+            "secondary-container": "#3131c0",
+            "on-tertiary-fixed": "#1d1b19"
+          },
+          "borderRadius": {
+            "DEFAULT": "0.125rem",
+            "lg": "0.25rem",
+            "xl": "0.5rem",
+            "full": "0.75rem"
+          },
+          "spacing": {
+            "gutter": "1rem",
+            "xl": "2rem",
+            "lg": "1.5rem",
+            "md": "1rem",
+            "base": "4px",
+            "xs": "0.25rem",
+            "sm": "0.5rem",
+            "sidebar-width": "280px",
+            "rail-width": "64px"
+          },
+          "fontFamily": {
+            "h1": ["Inter"],
+            "code-inline": ["JetBrains Mono"],
+            "h2": ["Inter"],
+            "body": ["Inter"],
+            "h3": ["Inter"],
+            "ui-label": ["Inter"],
+            "code-block": ["JetBrains Mono"]
+          },
+          "fontSize": {
+            "h1": ["1.875rem", { "lineHeight": "2.25rem", "letterSpacing": "-0.02em", "fontWeight": "600" }],
+            "code-inline": ["0.8125rem", { "lineHeight": "1rem", "fontWeight": "500" }],
+            "h2": ["1.5rem", { "lineHeight": "2rem", "letterSpacing": "-0.01em", "fontWeight": "600" }],
+            "body": ["0.875rem", { "lineHeight": "1.5rem", "fontWeight": "400" }],
+            "h3": ["1.25rem", { "lineHeight": "1.75rem", "letterSpacing": "-0.01em", "fontWeight": "600" }],
+            "ui-label": ["0.75rem", { "lineHeight": "1rem", "letterSpacing": "0.05em", "fontWeight": "500" }],
+            "code-block": ["0.875rem", { "lineHeight": "1.6rem", "fontWeight": "400" }]
+          }
+        },
+      },
+    }
+  </script>
+<style>
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+    }
+    .scrollbar-hide::-webkit-scrollbar { display: none; }
+    .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+    .markdown-body h1 { @apply font-h1 text-h1 text-primary mb-6 border-b border-outline-variant pb-2; }
+    .markdown-body h2 { @apply font-h2 text-h2 text-primary mt-8 mb-4 border-b border-outline-variant pb-1; }
+    .markdown-body h3 { @apply font-h3 text-h3 text-primary mt-6 mb-3; }
+    .markdown-body p { @apply font-body text-body text-on-surface-variant mb-4; }
+    .markdown-body code { @apply font-code-inline text-code-inline bg-surface-container-highest px-1.5 py-0.5 rounded text-secondary; }
+    .markdown-body pre { @apply bg-surface-container-lowest p-4 rounded-lg overflow-x-auto border border-outline-variant mb-6; }
+    .markdown-body pre code { @apply bg-transparent p-0 text-on-surface font-code-block text-code-block; }
+    .markdown-body ul { @apply list-disc list-inside mb-4 text-on-surface-variant; }
+    .markdown-body li { @apply mb-1 ml-4; }
+    .markdown-body blockquote { @apply border-l-4 border-secondary-container bg-surface-container-low px-4 py-2 italic text-on-surface-variant mb-4 rounded-r; }
+  </style>
+</head>
+<body class="bg-background text-on-surface font-body overflow-hidden">
+<!-- SideNavBar (Rail) -->
+<aside class="flex flex-col h-screen fixed left-0 top-0 bg-surface-container-low dark:bg-surface-container-low h-full w-16 flex-shrink-0 border-r border-outline-variant z-50">
+<div class="flex items-center justify-center h-14 w-full">
+<span class="material-symbols-outlined text-primary text-2xl">terminal</span>
+</div>
+<nav class="flex-1 flex flex-col items-center py-4 space-y-4">
+<div class="cursor-pointer active:scale-95 bg-surface-container-highest text-primary border-l-2 border-secondary-container group relative flex flex-col items-center justify-center w-12 h-12 rounded transition-all">
+<span class="material-symbols-outlined">folder_open</span>
+<span class="absolute left-14 bg-surface-container-high text-on-surface px-2 py-1 rounded text-xs opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">Explorer</span>
+</div>
+<div class="cursor-pointer active:scale-95 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-colors group relative flex flex-col items-center justify-center w-12 h-12 rounded">
+<span class="material-symbols-outlined">bookmark</span>
+<span class="absolute left-14 bg-surface-container-high text-on-surface px-2 py-1 rounded text-xs opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">Bookmarks</span>
+</div>
+<div class="cursor-pointer active:scale-95 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-colors group relative flex flex-col items-center justify-center w-12 h-12 rounded">
+<span class="material-symbols-outlined">info</span>
+<span class="absolute left-14 bg-surface-container-high text-on-surface px-2 py-1 rounded text-xs opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">Metadata</span>
+</div>
+</nav>
+<div class="flex flex-col items-center pb-6 space-y-4">
+<div class="cursor-pointer active:scale-95 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-colors group relative flex flex-col items-center justify-center w-12 h-12 rounded">
+<span class="material-symbols-outlined">settings</span>
+</div>
+<div class="cursor-pointer active:scale-95 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-colors group relative flex flex-col items-center justify-center w-12 h-12 rounded">
+<span class="material-symbols-outlined">help_outline</span>
+</div>
+</div>
+</aside>
+<!-- Main Shell Layout -->
+<div class="flex flex-col h-screen ml-16">
+<!-- TopAppBar -->
+<header class="flex items-center justify-between px-gutter w-full h-14 sticky top-0 z-40 bg-surface-dim dark:bg-surface-dim border-b border-outline-variant">
+<div class="flex items-center gap-4">
+<h1 class="font-h3 text-h3 font-bold tracking-tight text-primary">Markdown Viewer</h1>
+<nav class="hidden md:flex items-center gap-6 ml-8">
+<a class="font-ui-label text-ui-label text-primary font-bold border-b-2 border-secondary-container pb-1 duration-200 ease-in-out" href="#">Docs</a>
+<a class="font-ui-label text-ui-label text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest rounded-lg transition-all duration-200 ease-in-out px-2 py-1" href="#">GitHub</a>
+<a class="font-ui-label text-ui-label text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest rounded-lg transition-all duration-200 ease-in-out px-2 py-1" href="#">Marketplace</a>
+</nav>
+</div>
+<div class="flex items-center gap-3">
+<div class="relative hidden lg:block">
+<input class="bg-surface-container px-4 py-1.5 rounded-full text-ui-label border-none focus:ring-1 focus:ring-secondary-container w-64 transition-all" placeholder="Search files..." type="text"/>
+<span class="material-symbols-outlined absolute right-3 top-1.5 text-on-surface-variant text-base">search</span>
+</div>
+<button class="p-2 hover:bg-surface-container-highest rounded-lg transition-all text-on-surface-variant hover:text-primary">
+<span class="material-symbols-outlined">refresh</span>
+</button>
+<button class="p-2 hover:bg-surface-container-highest rounded-lg transition-all text-on-surface-variant hover:text-primary">
+<span class="material-symbols-outlined">share</span>
+</button>
+<div class="w-8 h-8 rounded-full bg-surface-container-high overflow-hidden border border-outline-variant">
+<img alt="User profile" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAI1nYUm13PvAHW2m1xGilJl4M7JPiMM11GvIlfxhtUw5KGKxnTSNPtBCdtESiFlT96UcaU-jEkhQzWrmsbvcEx2RX0uX3gJMowEOxr8aa9icxW5GB7AlNsrb3FBlD81WPH3BAVCuFuh1u3ANS0uI-gcwU-dFTcYAo28dvIq8JCHQtI-zlUxCJ2lP-dTSr55s9GDk8ZMp3HaTSYIRiUvLmcusZvwm6psLqpHtXf4W67SbQLW5PJYtm7bLteolmNB3bBFXh5LM5jvVQ"/>
+</div>
+</div>
+</header>
+<!-- Column Wrapper -->
+<main class="flex flex-1 overflow-hidden">
+<!-- File Explorer Column -->
+<section class="w-sidebar-width bg-surface-container-low border-r border-outline-variant flex flex-col">
+<div class="p-4 flex items-center justify-between border-b border-outline-variant">
+<span class="font-ui-label uppercase tracking-widest text-on-surface-variant text-[10px] font-bold">Project Root</span>
+<span class="material-symbols-outlined text-sm text-on-surface-variant">unfold_more</span>
+</div>
+<div class="flex-1 overflow-y-auto py-2 scrollbar-hide">
+<div class="px-2 py-1 flex items-center gap-2 text-on-surface-variant hover:bg-surface-container-high cursor-pointer rounded-lg mx-2 transition-colors">
+<span class="material-symbols-outlined text-base">folder</span>
+<span class="text-body text-xs">src</span>
+</div>
+<div class="px-2 py-1 flex items-center gap-2 text-on-surface-variant hover:bg-surface-container-high cursor-pointer rounded-lg mx-2 transition-colors">
+<span class="material-symbols-outlined text-base text-secondary">folder_open</span>
+<span class="text-body text-xs">docs</span>
+</div>
+<div class="ml-6 px-2 py-1 flex items-center gap-2 text-primary bg-surface-container-highest cursor-pointer rounded-lg mr-2 transition-colors border-l-2 border-secondary-container">
+<span class="material-symbols-outlined text-base text-secondary">description</span>
+<span class="text-body text-xs font-medium">README.md</span>
+</div>
+<div class="ml-6 px-2 py-1 flex items-center gap-2 text-on-surface-variant hover:bg-surface-container-high cursor-pointer rounded-lg mr-2 transition-colors">
+<span class="material-symbols-outlined text-base">description</span>
+<span class="text-body text-xs">CONTRIBUTING.md</span>
+</div>
+<div class="ml-6 px-2 py-1 flex items-center gap-2 text-on-surface-variant hover:bg-surface-container-high cursor-pointer rounded-lg mr-2 transition-colors">
+<span class="material-symbols-outlined text-base">description</span>
+<span class="text-body text-xs">CHANGELOG.md</span>
+</div>
+<div class="px-2 py-1 flex items-center gap-2 text-on-surface-variant hover:bg-surface-container-high cursor-pointer rounded-lg mx-2 mt-2 transition-colors">
+<span class="material-symbols-outlined text-base">settings</span>
+<span class="text-body text-xs">package.json</span>
+</div>
+</div>
+<div class="p-4 border-t border-outline-variant">
+<button class="w-full bg-secondary-container text-on-secondary-container py-2 rounded-lg font-ui-label text-xs font-bold hover:brightness-110 transition-all flex items-center justify-center gap-2">
+<span class="material-symbols-outlined text-sm">add</span>
+            New File
+          </button>
+</div>
+</section>
+<!-- Markdown Preview Content -->
+<section class="flex-1 flex flex-col bg-surface overflow-hidden">
+<!-- Preview/Source Toggle & Toolbar -->
+<div class="h-12 border-b border-outline-variant flex items-center justify-between px-6 bg-surface-dim">
+<div class="flex items-center gap-1 bg-surface-container-highest p-1 rounded-lg">
+<button class="px-3 py-1 text-xs font-bold bg-surface text-primary rounded shadow-sm">Preview</button>
+<button class="px-3 py-1 text-xs font-bold text-on-surface-variant hover:text-on-surface transition-colors">Source</button>
+</div>
+<div class="flex items-center gap-4 text-on-surface-variant">
+<div class="flex items-center gap-2 border-r border-outline-variant pr-4 mr-2">
+<span class="material-symbols-outlined text-lg cursor-pointer hover:text-primary transition-colors">edit</span>
+<span class="material-symbols-outlined text-lg cursor-pointer hover:text-primary transition-colors">print</span>
+<span class="material-symbols-outlined text-lg cursor-pointer hover:text-primary transition-colors">download</span>
+</div>
+<span class="text-[10px] font-mono tracking-tighter">UTF-8 • Markdown</span>
+</div>
+</div>
+<div class="flex-1 overflow-y-auto flex">
+<!-- Main Content Area -->
+<article class="flex-1 p-8 lg:p-12 max-w-4xl mx-auto markdown-body scrollbar-hide">
+<h1>Markdown Viewer v2.0</h1>
+<p>Welcome to the premium developer preview of the <strong>Markdown Viewer</strong>. This tool is designed for high-performance developer environments where clarity, focus, and content density are paramount.</p>
+<blockquote>
+              "The design system favors compact padding for list items and inputs to ensure developers can see as much data as possible."
+            </blockquote>
+<h2>Features</h2>
+<ul>
+<li><strong>Fixed-Fluid Layout:</strong> Sidebars occupy fixed widths while content area remains fluid.</li>
+<li><strong>Tonal Layering:</strong> Depth communicated through shades rather than traditional shadows.</li>
+<li><strong>Typography First:</strong> Inter for UI elements and JetBrains Mono for code blocks.</li>
+<li><strong>Responsive Design:</strong> Optimized for all screen dimensions.</li>
+</ul>
+<h2>Getting Started</h2>
+<p>To begin using the viewer, simply drag and drop any <code>.md</code> file into the explorer panel or select a file from the existing project tree.</p>
+<pre><code>// Example of an Indigo-600 themed syntax block
+function initializeViewer(config) {
+  const root = document.getElementById('app');
+  const markdown = new ViewerCore(config);
+  
+  root.render(markdown.parse('README.md'));
+  console.log('Markdown Viewer initialized successfully.');
+}</code></pre>
+<h3>Metadata Tags</h3>
+<div class="flex gap-2 mb-6">
+<span class="bg-surface-container-highest border border-outline-variant px-2 py-0.5 rounded text-[10px] text-on-surface-variant">VERSION 2.4.0</span>
+<span class="bg-surface-container-highest border border-outline-variant px-2 py-0.5 rounded text-[10px] text-on-surface-variant">STABLE</span>
+<span class="bg-surface-container-highest border border-outline-variant px-2 py-0.5 rounded text-[10px] text-on-surface-variant">MIT LICENSE</span>
+</div>
+</article>
+<!-- Table of Contents Column (TOC) -->
+<aside class="hidden xl:flex w-64 border-l border-outline-variant flex-col p-6 sticky top-0 h-full overflow-y-auto bg-surface-dim">
+<span class="font-ui-label uppercase tracking-widest text-on-surface-variant text-[10px] font-bold mb-6">Table of Contents</span>
+<ul class="space-y-3">
+<li><a class="text-xs text-primary font-medium border-l-2 border-secondary-container pl-3 block" href="#">Markdown Viewer v2.0</a></li>
+<li><a class="text-xs text-on-surface-variant hover:text-primary transition-colors pl-3 block ml-2" href="#">Features</a></li>
+<li><a class="text-xs text-on-surface-variant hover:text-primary transition-colors pl-3 block ml-2" href="#">Getting Started</a></li>
+<li><a class="text-xs text-on-surface-variant hover:text-primary transition-colors pl-3 block ml-4" href="#">Metadata Tags</a></li>
+</ul>
+<div class="mt-auto pt-8">
+<div class="bg-surface-container p-4 rounded-xl border border-outline-variant">
+<div class="flex items-center gap-3 mb-3">
+<div class="w-10 h-10 rounded-lg bg-secondary-container flex items-center justify-center">
+<span class="material-symbols-outlined text-on-secondary-container">auto_awesome</span>
+</div>
+<div>
+<p class="text-xs font-bold text-primary">Pro Tip</p>
+<p class="text-[10px] text-on-surface-variant">Use Cmd+P to search.</p>
+</div>
+</div>
+<div class="relative w-full h-24 rounded-lg overflow-hidden border border-outline-variant">
+<img alt="Developer Workspace" class="w-full h-full object-cover brightness-50" data-alt="A professional, dark-themed code editor environment with a complex project file structure visible on the left and a clean, syntax-highlighted markdown file on the right. The lighting is low-key with subtle indigo glow from the primary accents, reflecting a utilitarian-premium aesthetic. The overall mood is focused and serene, perfect for high-performance developer tasks." src="https://lh3.googleusercontent.com/aida-public/AB6AXuARSJyHPWfgH22QF65cL8cDmirHFW2VfUCs3Vt7t6DwLsVJrPZQsSNFTS2SSp6hFIgx-1q2Widzu4bAPLZR8X92BDLFOe1LJZJgONlDdpe2S9R2Jl_DVf9fmXw2qxcCLRgy7s10Labuw9pFkXMw5hXjJ_iCQRKEVYlYNXvhyVjoOZBQgmmypvdG3bbfYi4CVJ1b3Kj7FNfENMfE8VieJzbio8iDlqv0RyBc_qbFyNza9rteX5F7dA8ssq_3LAZrMxY5vzupnO5vo4w"/>
+</div>
+</div>
+</div>
+</aside>
+</div>
+</section>
+</main>
+</div>
+</body></html>
