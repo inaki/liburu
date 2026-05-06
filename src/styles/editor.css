@@ -1,0 +1,45 @@
+.error-banner {
+  margin: 18px 42px 0;
+  padding: 12px 14px;
+  border: 1px solid rgba(255, 180, 171, 0.28);
+  border-radius: 8px;
+  background: rgba(147, 0, 10, 0.35);
+  color: var(--danger);
+}
+
+.design-empty-state {
+  padding: 18px 16px;
+  color: var(--text-muted);
+  font-size: 0.84rem;
+}
+
+.source-editor {
+  width: min(860px, 100%);
+  min-height: calc(100vh - 240px);
+  margin: 0 auto;
+  padding: 18px;
+  border: 1px solid var(--outline);
+  border-radius: 8px;
+  background: var(--surface-lowest);
+  color: var(--text);
+  resize: none;
+  outline: none;
+  font-family: "JetBrains Mono", "SFMono-Regular", monospace;
+  font-size: 0.9rem;
+  line-height: 1.7;
+}
+
+.source-editor.wrap {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.source-editor:not(.wrap) {
+  white-space: pre;
+  overflow: auto;
+}
+
+.source-editor:focus {
+  border-color: var(--outline-strong);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--indigo-soft) 22%, transparent);
+}

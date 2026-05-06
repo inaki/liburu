@@ -1,62 +1,41 @@
-import { lazy, Suspense, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import clsx from "clsx";
 import {
   Bookmark,
   CalendarDays,
-  ChevronUp,
-  Copy,
   ChevronDown,
   ChevronRight,
+  Download,
   FileText,
+  FilePlus2,
   Folder,
-  FolderOpen,
   HelpCircle,
+  Info,
   LayoutGrid,
-  Pin,
+  Pencil,
   PencilLine,
   PenTool,
+  Printer,
+  RefreshCw,
   Search,
+  Settings,
   Star,
-  TerminalSquare,
   Trash2,
-  Archive,
-  ArchiveRestore,
   UserCircle2,
-  Warehouse
 } from "lucide-react";
-import { PreviewToolbar } from "./components/PreviewToolbar";
+import { CloneDialog } from "./components/CloneDialog";
+import { DocumentWorkspace } from "./components/DocumentWorkspace";
+import { NoteDialog } from "./components/NoteDialog";
+import { SecondarySidebar } from "./components/SecondarySidebar";
+import { SettingsDialog } from "./components/SettingsDialog";
 import { Topbar } from "./components/Topbar";
-import { Button } from "./components/ui/button";
-import { Checkbox } from "./components/ui/checkbox";
-import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogIconClose,
-  DialogTitle
-} from "./components/ui/dialog";
+import { WorkspaceHome } from "./components/WorkspaceHome";
+import { WorkspaceSearchView } from "./components/WorkspaceSearchView";
 import { Input } from "./components/ui/input";
 import { Label } from "./components/ui/label";
-import { ScrollArea } from "./components/ui/scroll-area";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue
-} from "./components/ui/select";
-import { Textarea } from "./components/ui/textarea";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger
-} from "./components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./components/ui/tooltip";
 import { useWorkspace } from "./features/spaces/useWorkspace";
 import { DEFAULT_SPACE_EXCLUDES, getSpaceLabel, normalizeExcludePaths } from "./features/spaces/storage";
 
@@ -194,7 +173,6 @@ type CloneResult = {
 
 type WorkspaceSearchScope = "all" | "current";
 
-const MarkdownPreview = lazy(() => import("./MarkdownPreview"));
 const BOOKMARKS_KEY = "md-project-viewer:bookmarks";
 const RECENT_NOTES_KEY = "md-project-viewer:recent-notes";
 const SETTINGS_KEY = "md-project-viewer:settings";
@@ -250,6 +228,19 @@ const EMPTY_ROOT: TreeNode = {
   kind: "directory",
   children: []
 };
+
+function getGitStatusBadgeClass(status: string) {
+  return clsx(
+    "ml-auto whitespace-nowrap rounded-full px-[7px] py-[3px] text-[0.67rem] font-bold uppercase tracking-[0.04em]",
+    (status === "modified" || status === "changed") && "bg-amber-500/15 text-amber-600",
+    (status === "untracked" || status === "added") && "bg-emerald-500/15 text-emerald-600",
+    (status === "deleted" || status === "conflict") && "bg-red-500/15 text-red-600",
+    status === "renamed" && "bg-indigo-500/15 text-[color:var(--indigo-soft)]"
+  );
+}
+
+const railButtonClassName =
+  "grid h-[42px] w-[42px] place-items-center rounded-[6px] bg-transparent text-[color:var(--text-muted)] transition-colors hover:bg-[color:var(--surface-highest)] hover:text-[color:var(--text)]";
 
 function formatTodayPath(date = new Date()) {
   const year = String(date.getFullYear());
@@ -635,6 +626,12 @@ function TreeBranch({
         const isFocused = focusedPath === row.path;
         const isDirty = dirtyPath === row.path;
         const indent = { paddingLeft: `${row.depth * 18 + 14}px` };
+        const rowClassName = clsx(
+          "group flex min-h-[var(--row-height)] w-full items-center gap-2.5 rounded-r-[6px] bg-transparent px-[var(--panel-padding)] py-1.5 text-left text-[color:var(--text-muted)] transition-colors hover:bg-[color:var(--surface-high)] hover:text-[color:var(--text)]",
+          isFocused && "bg-[color:var(--surface-high)] text-[color:var(--text)]",
+          isSelected &&
+            "bg-[color:color-mix(in_srgb,var(--surface-highest)_88%,transparent)] text-[color:var(--text)] shadow-[inset_2px_0_0_var(--indigo)]"
+        );
 
         if (row.kind === "directory") {
           return (
@@ -642,7 +639,7 @@ function TreeBranch({
               key={row.id}
               role="button"
               tabIndex={-1}
-              className={clsx("explorer-row explorer-row-directory", isFocused && "focused")}
+              className={rowClassName}
               style={indent}
               onClick={() => {
                 onFocus(row.path);
@@ -650,35 +647,40 @@ function TreeBranch({
               }}
             >
               {expanded.has(row.path) ? (
-                <ChevronDown className="icon explorer-row-icon explorer-chevron" />
+                <ChevronDown className="icon h-4 w-4 shrink-0 text-[color:var(--text-muted)]" />
               ) : (
-                <ChevronRight className="icon explorer-row-icon explorer-chevron" />
+                <ChevronRight className="icon h-4 w-4 shrink-0 text-[color:var(--text-muted)]" />
               )}
-              <Folder className="icon explorer-row-icon folder" />
-              <span className="explorer-row-label">{row.name}</span>
-              <span className="explorer-row-actions">
+              <Folder className="icon h-4 w-4 shrink-0 text-[color:var(--indigo-soft)]" />
+              <span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">{row.name}</span>
+              <span
+                className={clsx(
+                  "ml-auto inline-flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100",
+                  isFocused && "opacity-100"
+                )}
+              >
                 <button
                   type="button"
-                  className="row-action-button"
+                  className="grid h-6 w-6 place-items-center rounded-[6px] bg-transparent text-[color:var(--text-muted)] transition-colors hover:bg-[color:var(--surface-highest)] hover:text-[color:var(--text)]"
                   aria-label="Create note in folder"
                   onClick={(event) => {
                     event.stopPropagation();
                     onCreateInDirectory(row.path);
                   }}
                 >
-                  <FilePlus2 className="icon" />
+                  <FilePlus2 className="icon h-[0.85rem] w-[0.85rem]" />
                 </button>
                 {row.path === "journal" || row.path.startsWith("journal/") ? (
                   <button
                     type="button"
-                    className="row-action-button"
+                    className="grid h-6 w-6 place-items-center rounded-[6px] bg-transparent text-[color:var(--text-muted)] transition-colors hover:bg-[color:var(--surface-highest)] hover:text-[color:var(--text)]"
                     aria-label="Create journal entry in folder"
                     onClick={(event) => {
                       event.stopPropagation();
                       onCreateJournalInDirectory(row.path);
                     }}
                   >
-                    <CalendarDays className="icon" />
+                    <CalendarDays className="icon h-[0.85rem] w-[0.85rem]" />
                   </button>
                 ) : null}
               </span>
@@ -690,25 +692,24 @@ function TreeBranch({
           <button
             key={row.id}
             type="button"
-            className={clsx(
-              "explorer-row explorer-row-file",
-              isSelected && "selected",
-              isFocused && "focused"
-            )}
+            className={rowClassName}
             style={indent}
             onClick={() => {
               onFocus(row.path);
               onSelect(row.path);
             }}
           >
-            <span className="explorer-row-icon spacer" />
-            <FileText className="icon explorer-row-icon file" />
-            <span className="explorer-row-label">{row.name}</span>
-            {isDirty ? <span className="dirty-indicator" aria-label="Unsaved changes" /> : null}
+            <span className="h-4 w-4 shrink-0" />
+            <FileText className="icon h-4 w-4 shrink-0 text-[color:var(--indigo-soft)]" />
+            <span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">{row.name}</span>
+            {isDirty ? (
+              <span
+                className="h-2 w-2 shrink-0 rounded-full bg-[color:var(--indigo-soft)] shadow-[0_0_0_2px_color-mix(in_srgb,var(--indigo-soft)_20%,transparent)]"
+                aria-label="Unsaved changes"
+              />
+            ) : null}
             {gitStatuses[row.path] ? (
-              <span className={clsx("git-status-badge", `git-status-${gitStatuses[row.path]}`)}>
-                {gitStatuses[row.path]}
-              </span>
+              <span className={getGitStatusBadgeClass(gitStatuses[row.path])}>{gitStatuses[row.path]}</span>
             ) : null}
           </button>
         );
@@ -734,6 +735,8 @@ export default function App() {
   const [workspaceSearchGroups, setWorkspaceSearchGroups] = useState<WorkspaceSearchGroup[]>([]);
   const [isWorkspaceSearching, setIsWorkspaceSearching] = useState(false);
   const [isLoadingTree, setIsLoadingTree] = useState(false);
+  const [openingSpacePath, setOpeningSpacePath] = useState<string | null>(null);
+  const [openingRecentNoteKey, setOpeningRecentNoteKey] = useState<string | null>(null);
   const [isLoadingFile, setIsLoadingFile] = useState(false);
   const [isSavingFile, setIsSavingFile] = useState(false);
   const [isAutoRefreshing, setIsAutoRefreshing] = useState(false);
@@ -1227,7 +1230,7 @@ export default function App() {
       activateView?: boolean;
       excludePathsOverride?: string[];
     }
-  ) {
+  ): Promise<MdFile[]> {
     const preserveSelection = options?.preserveSelection ?? false;
     const resetSearch = options?.resetSearch ?? true;
     const silent = options?.silent ?? false;
@@ -1236,7 +1239,7 @@ export default function App() {
     const excludePathsOverride = options?.excludePathsOverride;
     if (isDirty && !allowDirty) {
       if (silent) {
-        return;
+        return [];
       }
 
       const shouldDiscard = window.confirm(
@@ -1244,7 +1247,7 @@ export default function App() {
       );
 
       if (!shouldDiscard) {
-        return;
+        return [];
       }
     }
 
@@ -1295,12 +1298,15 @@ export default function App() {
         setContent("");
         setDraftContent("");
       }
+
+      return scanned;
     } catch (scanError) {
       setError(scanError instanceof Error ? scanError.message : String(scanError));
       setFiles([]);
       setSelectedFile(null);
       setContent("");
       setDraftContent("");
+      return [];
     } finally {
       if (silent) {
         setIsAutoRefreshing(false);
@@ -1634,14 +1640,19 @@ export default function App() {
     }
   }
 
-  function handleOpenSpace(localPath: string) {
+  async function handleOpenSpace(localPath: string): Promise<MdFile[]> {
     const space = spaces.find((candidate) => candidate.localPath === localPath);
     if (space) {
       setActiveSpaceId(space.id);
     }
 
+    setOpeningSpacePath(localPath);
     setCurrentView("space");
-    void scanRoot(localPath, { preserveSelection: true, resetSearch: false });
+    try {
+      return await scanRoot(localPath, { preserveSelection: true, resetSearch: false });
+    } finally {
+      setOpeningSpacePath((current) => (current === localPath ? null : current));
+    }
   }
 
   function handleOpenHome() {
@@ -1797,20 +1808,32 @@ export default function App() {
     setCurrentView("search");
   }
 
-  function handleOpenRecentNote(note: RecentNote) {
+  async function handleOpenRecentNote(note: RecentNote) {
     const space = spaces.find((item) => item.id === note.spaceId);
     if (!space) {
       showNotice("This space is no longer available");
       return;
     }
 
-    handleOpenSpace(space.localPath);
-    window.setTimeout(() => handleSelect(note.relativePath), 0);
+    const noteKey = `${note.spaceId}:${note.path}`;
+    setOpeningRecentNoteKey(noteKey);
+    try {
+      const scanned = await handleOpenSpace(space.localPath);
+      const nextFile = scanned.find((file) => file.relative_path === note.relativePath);
+      if (nextFile) {
+        await loadFile(nextFile);
+      }
+    } finally {
+      setOpeningRecentNoteKey((current) => (current === noteKey ? null : current));
+    }
   }
 
-  function handleOpenWorkspaceSearchResult(group: WorkspaceSearchGroup, result: SearchResult) {
-    handleOpenSpace(group.localPath);
-    window.setTimeout(() => handleSelect(result.relative_path), 0);
+  async function handleOpenWorkspaceSearchResult(group: WorkspaceSearchGroup, result: SearchResult) {
+    const scanned = await handleOpenSpace(group.localPath);
+    const nextFile = scanned.find((file) => file.relative_path === result.relative_path);
+    if (nextFile) {
+      await loadFile(nextFile);
+    }
   }
 
   async function handleSaveCurrentFile(options?: { silent?: boolean }) {
@@ -2137,234 +2160,175 @@ export default function App() {
 
   return (
     <div
-      className="app-shell design-shell"
+      className="app-shell grid h-screen overflow-hidden bg-[color:var(--bg)] max-[960px]:grid-cols-[1fr] max-[960px]:[&>.app-rail]:hidden"
       style={{
         gridTemplateColumns: showSecondarySidebar
           ? `${RAIL_WIDTH}px ${SIDEBAR_WIDTH}px minmax(0, 1fr)`
           : `${RAIL_WIDTH}px minmax(0, 1fr)`
       }}
     >
-      <aside className="design-rail">
-        <button
-          type="button"
-          className={clsx("rail-brand", currentView === "home" && "active")}
-          data-tooltip="Workspace Home"
-          onClick={handleOpenHome}
-        >
-          {settings.brandLogoDataUrl ? (
-            <img src={settings.brandLogoDataUrl} alt="App logo" className="rail-brand-image" />
-          ) : (
-            <PenTool className="icon" />
-          )}
-        </button>
-        <nav className="rail-nav">
-          <button
-            type="button"
-            className={clsx("rail-item", currentView === "home" && "active")}
-            aria-label="Home"
-            data-tooltip="Home"
-            onClick={handleOpenHome}
-          >
-            <LayoutGrid className="icon" />
-          </button>
-          <button
-            type="button"
-            className={clsx("rail-item", currentView === "search" && "active")}
-            aria-label="Search"
-            data-tooltip="Search"
-            onClick={handleOpenWorkspaceSearch}
-          >
-            <Search className="icon" />
-          </button>
-          <button
-            type="button"
-            className={clsx("rail-item", currentView === "space" && activePanel === "explorer" && "active")}
-            aria-label="Explorer"
-            data-tooltip="Explorer"
-            onClick={() => {
-              setCurrentView("space");
-              setActivePanel("explorer");
-            }}
-          >
-            <Folder className="icon" />
-          </button>
-          <button
-            type="button"
-            className={clsx("rail-item", currentView === "space" && activePanel === "bookmarks" && "active")}
-            aria-label="Bookmarks"
-            data-tooltip="Bookmarks"
-            onClick={() => {
-              setCurrentView("space");
-              setActivePanel("bookmarks");
-            }}
-          >
-            <Bookmark className="icon" />
-          </button>
-        </nav>
-        <div className="rail-footer">
-          <button
-            type="button"
-            className="rail-item"
-            aria-label="Settings"
-            data-tooltip="Settings"
-            onClick={() => setIsSettingsOpen(true)}
-          >
-            <Settings className="icon" />
-          </button>
-          <button
-            type="button"
-            className="rail-item"
-            aria-label="Help"
-            data-tooltip="Help"
-            onClick={() => showNotice("Use arrows in the explorer and Enter to open")}
-          >
-            <HelpCircle className="icon" />
-          </button>
-        </div>
-      </aside>
+      <TooltipProvider delayDuration={150}>
+        <aside className="app-rail flex flex-col items-center justify-between border-r border-[color:var(--outline)] bg-[color:var(--surface-low)] px-0 pb-5 pt-[18px]">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                className={clsx(
+                  "grid h-[42px] w-[42px] place-items-center overflow-hidden rounded-[6px] border border-[color:var(--outline-strong)] bg-[color:var(--surface-high)] font-bold text-[color:var(--indigo)]"
+                )}
+                onClick={handleOpenHome}
+              >
+                {settings.brandLogoDataUrl ? (
+                  <img src={settings.brandLogoDataUrl} alt="App logo" className="h-full w-full object-cover" />
+                ) : (
+                  <PenTool className="icon h-5 w-5" />
+                )}
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="right">Workspace Home</TooltipContent>
+          </Tooltip>
+
+          <nav className="flex flex-col items-center gap-[14px]">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  className={clsx(
+                    railButtonClassName,
+                    currentView === "home" && "bg-[color:var(--surface-highest)] text-[color:var(--indigo)]"
+                  )}
+                  aria-label="Home"
+                  onClick={handleOpenHome}
+                >
+                  <LayoutGrid className="icon h-5 w-5" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="right">Home</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  className={clsx(
+                    railButtonClassName,
+                    currentView === "search" && "bg-[color:var(--surface-highest)] text-[color:var(--indigo)]"
+                  )}
+                  aria-label="Search"
+                  onClick={handleOpenWorkspaceSearch}
+                >
+                  <Search className="icon h-5 w-5" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="right">Search</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  className={clsx(
+                    railButtonClassName,
+                    currentView === "space" &&
+                      activePanel === "explorer" &&
+                      "bg-[color:var(--surface-highest)] text-[color:var(--indigo)]"
+                  )}
+                  aria-label="Explorer"
+                  onClick={() => {
+                    setCurrentView("space");
+                    setActivePanel("explorer");
+                  }}
+                >
+                  <Folder className="icon h-5 w-5" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="right">Explorer</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  className={clsx(
+                    railButtonClassName,
+                    currentView === "space" &&
+                      activePanel === "bookmarks" &&
+                      "bg-[color:var(--surface-highest)] text-[color:var(--indigo)]"
+                  )}
+                  aria-label="Bookmarks"
+                  onClick={() => {
+                    setCurrentView("space");
+                    setActivePanel("bookmarks");
+                  }}
+                >
+                  <Bookmark className="icon h-5 w-5" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="right">Bookmarks</TooltipContent>
+            </Tooltip>
+          </nav>
+
+          <div className="flex flex-col items-center gap-[14px]">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  className={railButtonClassName}
+                  aria-label="Settings"
+                  onClick={() => setIsSettingsOpen(true)}
+                >
+                  <Settings className="icon h-5 w-5" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="right">Settings</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  className={railButtonClassName}
+                  aria-label="Help"
+                  onClick={() => showNotice("Use arrows in the explorer and Enter to open")}
+                >
+                  <HelpCircle className="icon h-5 w-5" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="right">Help</TooltipContent>
+            </Tooltip>
+          </div>
+        </aside>
+      </TooltipProvider>
 
       {showSecondarySidebar ? (
-      <aside className="design-sidebar">
-        <section className="explorer-panel">
-          <div className="explorer-panel-header">
-            <span>Workspace Files</span>
-            <div className="explorer-panel-actions">
-              <button
-                type="button"
-                className="icon-button"
-                onClick={() => void handleCreateJournalEntry()}
-                disabled={!rootPath}
-                aria-label="Create journal entry"
-              >
-                <CalendarDays className="icon" />
-              </button>
-              <button
-                type="button"
-                className="icon-button"
-                onClick={() => void handleCreateNote()}
-                disabled={!rootPath}
-                aria-label="Create note"
-              >
-                <FilePlus2 className="icon" />
-              </button>
-              <button
-                type="button"
-                className="icon-button"
-                onClick={() => void scanRoot(rootPath, { preserveSelection: true, resetSearch: false })}
-                disabled={!rootPath || isLoadingTree}
-                aria-label="Refresh scan"
-              >
-                <RefreshCw className="icon" />
-              </button>
-            </div>
-          </div>
-
-          <div className="explorer-search">
-            <input
-              type="search"
-              value={searchQuery}
-              onChange={(event) => setSearchQuery(event.target.value)}
-              placeholder="Search project..."
-            />
-          </div>
-
-          <div
-            className="explorer-tree"
-            role="tree"
-            tabIndex={0}
-            aria-label="Markdown files"
-            onKeyDown={handleTreeKeyDown}
-          >
-            {activePanel === "explorer" && searchQuery.trim() ? (
-              isSearching ? (
-                <div className="explorer-empty">Searching notes…</div>
-              ) : searchResults.length > 0 ? (
-                <div className="search-results">
-                  {searchResults.map((result) => (
-                    <button
-                      key={result.path}
-                      type="button"
-                      className={clsx(
-                        "search-result-item",
-                        selectedFile?.path === result.path && "selected"
-                      )}
-                      onClick={() => handleSelect(result.relative_path)}
-                    >
-                      <div className="search-result-topline">
-                        <FileText className="icon explorer-row-icon file" />
-                        <span className="search-result-name">{result.relative_path}</span>
-                      </div>
-                      <div className="search-result-meta">
-                        {result.matched_on_path ? "Path match" : "Content match"}
-                      </div>
-                      {result.snippet ? (
-                        <div className="search-result-snippet">{result.snippet}</div>
-                      ) : null}
-                    </button>
-                  ))}
-                </div>
-              ) : (
-                <div className="explorer-empty">No notes matched this search.</div>
-              )
-            ) : activePanel === "explorer" && files.length > 0 ? (
-              <TreeBranch
-                rows={visibleRows}
-                gitStatuses={gitStatuses}
-                dirtyPath={dirtyRelativePath}
-                expanded={expanded}
-                selectedPath={selectedFile?.relative_path ?? null}
-                focusedPath={focusedPath}
-                onToggle={handleToggle}
-                onSelect={handleSelect}
-                onFocus={setFocusedPath}
-                onCreateInDirectory={handleCreateNoteInDirectory}
-                onCreateJournalInDirectory={handleCreateJournalInDirectory}
-              />
-            ) : activePanel === "bookmarks" ? (
-              bookmarkedFiles.length > 0 ? (
-                bookmarkedFiles.map((file) => (
-                  <button
-                    key={file.path}
-                    type="button"
-                    className={clsx(
-                      "explorer-row explorer-row-file",
-                      selectedFile?.path === file.path && "selected"
-                    )}
-                    onClick={() => handleSelect(file.relative_path)}
-                  >
-                    <span className="explorer-row-icon spacer" />
-                    <Bookmark className="icon explorer-row-icon file" />
-                    <span className="explorer-row-label">{file.relative_path}</span>
-                    {dirtyRelativePath === file.relative_path ? (
-                      <span className="dirty-indicator" aria-label="Unsaved changes" />
-                    ) : null}
-                    {gitStatuses[file.relative_path] ? (
-                      <span className={clsx("git-status-badge", `git-status-${gitStatuses[file.relative_path]}`)}>
-                        {gitStatuses[file.relative_path]}
-                      </span>
-                    ) : null}
-                  </button>
-                ))
-              ) : (
-                <div className="explorer-empty">Bookmark a file to keep it here.</div>
-              )
-            ) : (
-              <div className="explorer-empty">
-                {isLoadingTree ? "Scanning project…" : "No Markdown files loaded yet."}
-              </div>
-            )}
-          </div>
-
-          <div className="explorer-footer">
-            <span>{files.length} files found</span>
-            <span>{isAutoRefreshing ? "Synced now" : "Local view"}</span>
-          </div>
-        </section>
-
-      </aside>
+        <SecondarySidebar
+          rootPath={rootPath}
+          activePanel={activePanel}
+          searchQuery={searchQuery}
+          onSearchQueryChange={setSearchQuery}
+          isLoadingTree={isLoadingTree}
+          isSearching={isSearching}
+          searchResults={searchResults}
+          files={files}
+          bookmarkedFiles={bookmarkedFiles}
+          selectedFilePath={selectedFile?.path ?? null}
+          selectedRelativePath={selectedFile?.relative_path ?? null}
+          focusedPath={focusedPath}
+          dirtyRelativePath={dirtyRelativePath}
+          gitStatuses={gitStatuses}
+          visibleRows={visibleRows}
+          expanded={expanded}
+          onToggle={handleToggle}
+          onSelect={handleSelect}
+          onFocus={setFocusedPath}
+          onTreeKeyDown={handleTreeKeyDown}
+          onCreateJournalEntry={handleCreateJournalEntry}
+          onCreateNote={handleCreateNote}
+          onRefreshScan={() => scanRoot(rootPath, { preserveSelection: true, resetSearch: false })}
+          onCreateInDirectory={handleCreateNoteInDirectory}
+          onCreateJournalInDirectory={handleCreateJournalInDirectory}
+          isAutoRefreshing={isAutoRefreshing}
+          TreeBranch={TreeBranch}
+        />
       ) : null}
 
-      <div className="workspace-shell">
+      <div className="grid min-h-0 min-w-0 grid-rows-[56px_minmax(0,1fr)] overflow-hidden">
         <Topbar
           title={
             currentView === "home"
@@ -2387,1136 +2351,142 @@ export default function App() {
           onProfile={() => showNotice("Local-only desktop viewer")}
         />
 
-        <main className="workspace-main">
+        <main className="min-h-0 min-w-0 overflow-hidden">
           {currentView === "home" ? (
-            <section className="workspace-home">
-              <div className="home-hero">
-                <div>
-                  <p className="home-kicker">Local-first workspace</p>
-                  <h1>Spaces, recent notes, and fast entry points.</h1>
-                  <p className="home-copy">
-                    Open multiple markdown spaces, jump back into recent notes, and start a new note or
-                    journal entry without digging through folders first.
-                  </p>
-                </div>
-                <div className="home-actions">
-                  <button type="button" className="primary-action" onClick={selectRootDirectory}>
-                    Add Space
-                  </button>
-                  <button type="button" className="secondary-action" onClick={openCloneDialog}>
-                    Clone Repository
-                  </button>
-                  <button
-                    type="button"
-                    className="secondary-action"
-                    onClick={() => {
-                      if (activeSpace?.localPath) {
-                        setCurrentView("space");
-                        void handleCreateJournalEntry();
-                        return;
-                      }
-                      showNotice("Open a space first to create a journal entry");
-                    }}
-                  >
-                    New Journal Entry
-                  </button>
-                </div>
-              </div>
-
-              <div className="home-grid">
-                <section className="home-panel">
-                  <div className="home-panel-header">
-                    <span>Spaces</span>
-                    <strong>{spaces.length}</strong>
-                  </div>
-                  <div className="home-space-list">
-                    {orderedVisibleSpaces.length > 0 ? (
-                      orderedVisibleSpaces.map((space, index) => (
-                        <div key={space.id} className="home-space-card">
-                          <div className="home-space-head">
-                            <button
-                              type="button"
-                              className="home-space-main"
-                              onClick={() => handleOpenSpace(space.localPath)}
-                            >
-                              <div className="home-space-topline">
-                                <Folder className="icon" />
-                                <span>{getSpaceLabel(space)}</span>
-                              </div>
-                            </button>
-                            <div className="home-card-actions">
-                              <button
-                                type="button"
-                                className={clsx("mini-icon-button", space.isPinned && "active")}
-                                aria-label={space.isPinned ? "Unpin space" : "Pin space"}
-                                onClick={() => handleTogglePinnedSpace(space.id)}
-                              >
-                                <Pin className="icon" />
-                              </button>
-                              <button
-                                type="button"
-                                className="mini-icon-button"
-                                aria-label="Move space up"
-                                disabled={index === 0}
-                                onClick={() => handleMoveSpace(space.id, -1)}
-                              >
-                                <ChevronUp className="icon" />
-                              </button>
-                              <button
-                                type="button"
-                                className="mini-icon-button"
-                                aria-label="Move space down"
-                                disabled={index === orderedVisibleSpaces.length - 1}
-                                onClick={() => handleMoveSpace(space.id, 1)}
-                              >
-                                <ChevronDown className="icon" />
-                              </button>
-                              <button
-                                type="button"
-                                className="mini-icon-button"
-                                aria-label="Reveal space in Finder"
-                                onClick={() => void handleRevealSpace(space.id)}
-                              >
-                                <FolderOpen className="icon" />
-                              </button>
-                              <button
-                                type="button"
-                                className="mini-icon-button"
-                                aria-label="Open space in Terminal"
-                                onClick={() => void handleOpenSpaceTerminal(space.id)}
-                              >
-                                <TerminalSquare className="icon" />
-                              </button>
-                              <button
-                                type="button"
-                                className="mini-icon-button"
-                                aria-label="Copy space path"
-                                onClick={() => void handleCopySpacePath(space.id)}
-                              >
-                                <Copy className="icon" />
-                              </button>
-                              <button
-                                type="button"
-                                className="mini-icon-button"
-                                aria-label="Rename space"
-                                onClick={() => handleRenameSpace(space.id)}
-                              >
-                                <PencilLine className="icon" />
-                              </button>
-                              <button
-                                type="button"
-                                className="mini-icon-button"
-                                aria-label={space.isArchived ? "Restore space" : "Archive space"}
-                                onClick={() => handleToggleArchivedSpace(space.id)}
-                              >
-                                <Archive className="icon" />
-                              </button>
-                              <button
-                                type="button"
-                                className="mini-icon-button"
-                                aria-label="Remove space"
-                                onClick={() => handleRemoveSpace(space.id)}
-                              >
-                                <Trash2 className="icon" />
-                              </button>
-                            </div>
-                          </div>
-                          {gitInfos[space.id]?.is_repo ? (
-                            <div className="home-space-badge">
-                              Git repo{gitInfos[space.id]?.branch ? ` • ${gitInfos[space.id]?.branch}` : ""}
-                            </div>
-                          ) : null}
-                          {space.isPinned ? <div className="home-space-badge home-space-badge-secondary">Pinned</div> : null}
-                          <div className="home-space-path">{space.localPath}</div>
-                          <div className="home-space-stats">
-                            <span>{spaceSummaries[space.id]?.note_count ?? 0} notes</span>
-                            <span>
-                              {spaceSummaries[space.id]?.latest_modified_at
-                                ? `Updated ${new Date(spaceSummaries[space.id].latest_modified_at!).toLocaleDateString()}`
-                                : "No recent edits"}
-                            </span>
-                          </div>
-                          <div className="home-space-meta">
-                            Last opened {new Date(space.lastOpenedAt).toLocaleDateString()}
-                          </div>
-                        </div>
-                      ))
-                    ) : (
-                      <div className="explorer-empty">Add your first space to start building the workspace.</div>
-                    )}
-                  </div>
-                </section>
-
-                <section className="home-panel">
-                  <div className="home-panel-header">
-                    <span>Archived Spaces</span>
-                    <strong>{archivedSpaces.length}</strong>
-                  </div>
-                  <div className="home-space-list">
-                    {archivedSpaces.length > 0 ? (
-                      archivedSpaces.map((space) => (
-                        <div key={`archived:${space.id}`} className="home-space-card">
-                          <div className="home-space-head">
-                            <button
-                              type="button"
-                              className="home-space-main"
-                              onClick={() => handleOpenSpace(space.localPath)}
-                            >
-                              <div className="home-space-topline">
-                                <Folder className="icon" />
-                                <span>{getSpaceLabel(space)}</span>
-                              </div>
-                            </button>
-                            <div className="home-card-actions">
-                              <button
-                                type="button"
-                                className="mini-icon-button"
-                                aria-label="Restore space"
-                                onClick={() => handleToggleArchivedSpace(space.id)}
-                              >
-                                <ArchiveRestore className="icon" />
-                              </button>
-                            </div>
-                          </div>
-                          <div className="home-space-path">{space.localPath}</div>
-                        </div>
-                      ))
-                    ) : (
-                      <div className="explorer-empty">Archived spaces stay here until you restore them.</div>
-                    )}
-                  </div>
-                </section>
-
-                <section className="home-panel">
-                  <div className="home-panel-header">
-                    <span>Recent Notes</span>
-                    <strong>{recentNotes.length}</strong>
-                  </div>
-                  <div className="home-note-list">
-                    {recentNotes.length > 0 ? (
-                      recentNotes.map((note) => (
-                        <button
-                          key={`${note.spaceId}:${note.path}`}
-                          type="button"
-                          className="home-note-card"
-                          onClick={() => handleOpenRecentNote(note)}
-                        >
-                          <div className="home-note-title">{note.relativePath}</div>
-                          <div className="home-note-meta">{note.spaceName}</div>
-                        </button>
-                      ))
-                    ) : (
-                      <div className="explorer-empty">Open a few notes and they will appear here.</div>
-                    )}
-                  </div>
-                </section>
-
-                <section className="home-panel">
-                  <div className="home-panel-header">
-                    <span>Bookmarked Notes</span>
-                    <strong>{homeBookmarkedNotes.length}</strong>
-                  </div>
-                  <div className="home-note-list">
-                    {homeBookmarkedNotes.length > 0 ? (
-                      homeBookmarkedNotes.map((note) => (
-                        <button
-                          key={`bookmark:${note.spaceId}:${note.path}`}
-                          type="button"
-                          className="home-note-card"
-                          onClick={() => handleOpenRecentNote(note)}
-                        >
-                          <div className="home-note-title">{note.relativePath}</div>
-                          <div className="home-note-meta">{note.spaceName}</div>
-                        </button>
-                      ))
-                    ) : (
-                      <div className="explorer-empty">Bookmark notes to pin them on the workspace home.</div>
-                    )}
-                  </div>
-                </section>
-
-                <section className="home-panel">
-                  <div className="home-panel-header">
-                    <span>Create From Template</span>
-                    <strong>4</strong>
-                  </div>
-                  <div className="home-template-list">
-                    <button type="button" className="home-template-card" onClick={() => void handleCreateNote()}>
-                      <strong>Blank Note</strong>
-                      <span>General markdown note with basic frontmatter.</span>
-                    </button>
-                    <button
-                      type="button"
-                      className="home-template-card"
-                      onClick={() => void handleCreateJournalEntry()}
-                    >
-                      <strong>Daily Journal</strong>
-                      <span>Dated entry with notes, wins, and next sections.</span>
-                    </button>
-                    <button
-                      type="button"
-                      className="home-template-card"
-                      onClick={() => void handleCreateTemplateNote("idea")}
-                    >
-                      <strong>Idea Note</strong>
-                      <span>Capture a problem, approach, and open questions.</span>
-                    </button>
-                    <button
-                      type="button"
-                      className="home-template-card"
-                      onClick={() => void handleCreateTemplateNote("meeting")}
-                    >
-                      <strong>Meeting Note</strong>
-                      <span>Track attendees, agenda, decisions, and follow-ups.</span>
-                    </button>
-                  </div>
-                </section>
-              </div>
-            </section>
+            <WorkspaceHome
+              activeSpace={activeSpace}
+              spaces={spaces}
+              orderedVisibleSpaces={orderedVisibleSpaces}
+              archivedSpaces={archivedSpaces}
+              recentNotes={recentNotes}
+              homeBookmarkedNotes={homeBookmarkedNotes}
+              spaceSummaries={spaceSummaries}
+              gitInfos={gitInfos}
+              openingSpacePath={openingSpacePath}
+              openingRecentNoteKey={openingRecentNoteKey}
+              onSelectRootDirectory={selectRootDirectory}
+              onOpenCloneDialog={openCloneDialog}
+              onCreateJournalEntry={handleCreateJournalEntry}
+              onCreateNote={handleCreateNote}
+              onCreateTemplateNote={handleCreateTemplateNote}
+              onShowNotice={showNotice}
+              onOpenSpace={handleOpenSpace}
+              onTogglePinnedSpace={handleTogglePinnedSpace}
+              onMoveSpace={handleMoveSpace}
+              onToggleArchivedSpace={handleToggleArchivedSpace}
+              onRemoveSpace={handleRemoveSpace}
+              onOpenRecentNote={handleOpenRecentNote}
+              onEnterSpaceView={() => setCurrentView("space")}
+            />
           ) : currentView === "search" ? (
-            <section className="workspace-search">
-              <div className="search-hero">
-                <p className="home-kicker">Across all spaces</p>
-                <h1>Find notes by path or content.</h1>
-                <p className="home-copy">
-                  Search every connected space at once, then jump straight into the matching note.
-                </p>
-                <div className="search-filters">
-                  <div className="search-filter">
-                    <Label>Scope</Label>
-                    <Select
-                      value={workspaceSearchScope}
-                      onValueChange={(value) => setWorkspaceSearchScope(value as WorkspaceSearchScope)}
-                    >
-                      <SelectTrigger className="h-10 min-w-[160px] rounded-[8px] bg-[color:var(--surface-lowest)]">
-                        <SelectValue placeholder="Choose scope" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All spaces</SelectItem>
-                        <SelectItem value="current">Current space</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <label className="search-filter-toggle">
-                    <Checkbox
-                      checked={workspaceSearchBookmarksOnly}
-                      onCheckedChange={(checked) =>
-                        setWorkspaceSearchBookmarksOnly(checked === true)
-                      }
-                    />
-                    <span>Bookmarked notes only</span>
-                  </label>
-                </div>
-              </div>
-
-              {workspaceSearchQuery.trim() ? (
-                isWorkspaceSearching ? (
-                  <div className="explorer-empty">Searching across spaces…</div>
-                ) : workspaceSearchGroups.length > 0 ? (
-                  <div className="workspace-search-groups">
-                    {workspaceSearchGroups.map((group) => (
-                      <section key={group.spaceId} className="workspace-search-group">
-                        <div className="workspace-search-group-header">
-                          <div className="home-space-topline">
-                            <Folder className="icon" />
-                            <span>{group.spaceName}</span>
-                          </div>
-                          <strong>{group.results.length} matches</strong>
-                        </div>
-                        <div className="workspace-search-group-results">
-                          {group.results.map((result) => (
-                            <button
-                              key={`${group.spaceId}:${result.path}`}
-                              type="button"
-                              className="search-result-item"
-                              onClick={() => handleOpenWorkspaceSearchResult(group, result)}
-                            >
-                              <div className="search-result-topline">
-                                <FileText className="icon explorer-row-icon file" />
-                                <span className="search-result-name">
-                                  {highlightParts(result.relative_path, workspaceSearchQuery).map((part, index) => (
-                                    <mark
-                                      key={`${result.path}:path:${index}`}
-                                      className={clsx("search-highlight", !part.match && "plain")}
-                                    >
-                                      {part.text}
-                                    </mark>
-                                  ))}
-                                </span>
-                              </div>
-                              <div className="search-result-meta">
-                                {result.matched_on_path ? "Path match" : "Content match"}
-                              </div>
-                              {result.snippet ? (
-                                <div className="search-result-snippet">
-                                  {highlightParts(result.snippet, workspaceSearchQuery).map((part, index) => (
-                                    <mark
-                                      key={`${result.path}:snippet:${index}`}
-                                      className={clsx("search-highlight", !part.match && "plain")}
-                                    >
-                                      {part.text}
-                                    </mark>
-                                  ))}
-                                </div>
-                              ) : null}
-                            </button>
-                          ))}
-                        </div>
-                      </section>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="explorer-empty">No notes matched this workspace search.</div>
-                )
-              ) : (
-                <div className="search-empty-grid">
-                  <div className="home-template-card">
-                    <strong>Search all spaces</strong>
-                    <span>Use the top bar to search note paths and content across your connected workspaces.</span>
-                  </div>
-                  <div className="home-template-card">
-                    <strong>Jump back faster</strong>
-                    <span>Results are grouped by space so it is easy to orient yourself before opening a note.</span>
-                  </div>
-                </div>
-              )}
-            </section>
+            <WorkspaceSearchView
+              workspaceSearchScope={workspaceSearchScope}
+              onWorkspaceSearchScopeChange={setWorkspaceSearchScope}
+              workspaceSearchBookmarksOnly={workspaceSearchBookmarksOnly}
+              onWorkspaceSearchBookmarksOnlyChange={setWorkspaceSearchBookmarksOnly}
+              workspaceSearchQuery={workspaceSearchQuery}
+              isWorkspaceSearching={isWorkspaceSearching}
+              workspaceSearchGroups={workspaceSearchGroups}
+              onOpenWorkspaceSearchResult={handleOpenWorkspaceSearchResult}
+              highlightParts={highlightParts}
+            />
           ) : (
-          <section className="grid h-full min-h-0 grid-rows-[58px_minmax(0,1fr)]">
-            <div className="flex items-center justify-between gap-4 border-b border-[color:var(--outline)] bg-[color:var(--toolbar-bg)] px-5">
-              <div className="inline-flex gap-1 rounded-[8px] bg-[color:var(--surface-highest)] p-1">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  className={clsx(
-                    "h-auto rounded-[6px] px-4 py-1.5 text-[0.76rem] font-bold text-[color:var(--text-muted)] hover:bg-transparent hover:text-[color:var(--text)]",
-                    viewMode === "preview" && "bg-[color:var(--bg)] text-[color:var(--text)] hover:bg-[color:var(--bg)]"
-                  )}
-                  onClick={() => setViewMode("preview")}
-                >
-                  Preview
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  className={clsx(
-                    "h-auto rounded-[6px] px-4 py-1.5 text-[0.76rem] font-bold text-[color:var(--text-muted)] hover:bg-transparent hover:text-[color:var(--text)]",
-                    viewMode === "source" && "bg-[color:var(--bg)] text-[color:var(--text)] hover:bg-[color:var(--bg)]"
-                  )}
-                  onClick={() => setViewMode("source")}
-                >
-                  Source
-                </Button>
-              </div>
-
-              <div className="flex items-center gap-2">
-                {settings.toolbar.save && selectedFile ? (
-                  <Button
-                    type="button"
-                    variant={isDirty ? "default" : "secondary"}
-                    className="min-w-[72px] px-[14px] py-2 text-[0.76rem] font-bold"
-                    aria-label="Save"
-                    onClick={() => void handleSaveCurrentFile()}
-                    disabled={isSavingFile}
-                  >
-                    {isSavingFile
-                      ? settings.autosave && isDirty
-                        ? "Autosaving..."
-                        : "Saving..."
-                      : isDirty
-                        ? settings.autosave
-                          ? "Autosave on"
-                          : "Save"
-                        : "Saved"}
-                  </Button>
-                ) : null}
-                {settings.toolbar.createNote ? <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="h-[34px] w-[34px] rounded-[6px] text-[color:var(--text-muted)] hover:bg-[color:var(--surface-high)] hover:text-[color:var(--text)]"
-                  aria-label="Create note"
-                  onClick={() => void handleCreateNote()}
-                >
-                  <FilePlus2 className="icon" />
-                </Button> : null}
-                {settings.toolbar.createJournal ? <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="h-[34px] w-[34px] rounded-[6px] text-[color:var(--text-muted)] hover:bg-[color:var(--surface-high)] hover:text-[color:var(--text)]"
-                  aria-label="Create journal entry"
-                  onClick={() => void handleCreateJournalEntry()}
-                >
-                  <CalendarDays className="icon" />
-                </Button> : null}
-                {settings.toolbar.rename ? <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="h-[34px] w-[34px] rounded-[6px] text-[color:var(--text-muted)] hover:bg-[color:var(--surface-high)] hover:text-[color:var(--text)]"
-                  aria-label="Rename note"
-                  onClick={() => void handleRenameCurrentFile()}
-                  disabled={!selectedFile || isDirty}
-                >
-                  <PencilLine className="icon" />
-                </Button> : null}
-                {settings.toolbar.editMode ? <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="h-[34px] w-[34px] rounded-[6px] text-[color:var(--text-muted)] hover:bg-[color:var(--surface-high)] hover:text-[color:var(--text)]"
-                  aria-label="Edit"
-                  onClick={() => setViewMode((current) => (current === "preview" ? "source" : "preview"))}
-                >
-                  <Pencil className="icon" />
-                </Button> : null}
-                {settings.toolbar.print ? <Button type="button" variant="ghost" size="icon" className="h-[34px] w-[34px] rounded-[6px] text-[color:var(--text-muted)] hover:bg-[color:var(--surface-high)] hover:text-[color:var(--text)]" aria-label="Print" onClick={handlePrint}>
-                  <Printer className="icon" />
-                </Button> : null}
-                {settings.toolbar.download ? <Button type="button" variant="ghost" size="icon" className="h-[34px] w-[34px] rounded-[6px] text-[color:var(--text-muted)] hover:bg-[color:var(--surface-high)] hover:text-[color:var(--text)]" aria-label="Download" onClick={handleDownload}>
-                  <Download className="icon" />
-                </Button> : null}
-                {settings.toolbar.metadata ? <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className={clsx(
-                    "h-[34px] w-[34px] rounded-[6px] text-[color:var(--text-muted)] hover:bg-[color:var(--surface-high)] hover:text-[color:var(--text)]",
-                    documentPanel === "metadata" && "text-[color:var(--indigo-soft)]"
-                  )}
-                  aria-label="Document metadata"
-                  onClick={() =>
-                    setDocumentPanel((current) => (current === "metadata" ? "toc" : "metadata"))
-                  }
-                >
-                  <Info className="icon" />
-                </Button> : null}
-                {settings.toolbar.delete ? <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="h-[34px] w-[34px] rounded-[6px] text-[color:var(--text-muted)] hover:bg-[color:var(--surface-high)] hover:text-[color:var(--text)]"
-                  aria-label="Delete note"
-                  onClick={() => void handleDeleteCurrentFile()}
-                  disabled={!selectedFile || isDirty}
-                >
-                  <Trash2 className="icon" />
-                </Button> : null}
-                {settings.toolbar.settings ? <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="h-[34px] w-[34px] rounded-[6px] text-[color:var(--text-muted)] hover:bg-[color:var(--surface-high)] hover:text-[color:var(--text)]"
-                  aria-label="Open settings"
-                  onClick={() => setIsSettingsOpen(true)}
-                >
-                  <Settings className="icon" />
-                </Button> : null}
-                <Separator orientation="vertical" className="mx-1 h-5 bg-[color:var(--outline)]" />
-                <span className="pl-0 text-[0.72rem] text-[color:var(--text-muted)]">UTF-8 • Markdown</span>
-              </div>
-            </div>
-
-            <div className="preview-content-shell">
-              <section className="preview-canvas">
-                {error ? <div className="error-banner">{error}</div> : null}
-
-                {selectedFile ? (
-                  isLoadingFile ? (
-                    <div className="design-empty-state">Loading file…</div>
-                  ) : (
-                    <div className="preview-scroll" ref={previewScrollRef}>
-                      <div className="preview-breadcrumb">
-                        <Warehouse className="icon" />
-                        <span>/</span>
-                        <span>{selectedFile.relative_path}</span>
-                        {settings.toolbar.bookmark ? (
-                          <button
-                            type="button"
-                            className={clsx(
-                              "breadcrumb-bookmark",
-                              bookmarks.includes(selectedFile.path) && "active"
-                            )}
-                            aria-label="Bookmark"
-                            onClick={() => toggleBookmark(selectedFile)}
-                          >
-                            <Star
-                              className="icon"
-                              fill={bookmarks.includes(selectedFile.path) ? "currentColor" : "none"}
-                            />
-                          </button>
-                        ) : null}
-                      </div>
-                      {viewMode === "preview" ? (
-                        <Suspense fallback={<div className="design-empty-state">Rendering preview…</div>}>
-                          <MarkdownPreview content={draftContent} />
-                        </Suspense>
-                      ) : (
-                        <textarea
-                          className={clsx("source-editor", settings.sourceWrap && "wrap")}
-                          value={draftContent}
-                          onChange={(event) => setDraftContent(event.target.value)}
-                          spellCheck={false}
-                        />
-                      )}
-                    </div>
-                  )
-                ) : (
-                  <div className="design-empty-hero">
-                    <div className="empty-hero-icon">
-                      <Pencil className="icon" />
-                    </div>
-                    <h3>No file selected</h3>
-                    <p>
-                      Select a markdown file from the explorer on the left to start
-                      viewing its rendered content.
-                    </p>
-                    <div className="empty-hero-grid">
-                      <button type="button" className="empty-card" onClick={() => void handleCreateNote()}>
-                        <strong>New Document</strong>
-                        <span>Create a new markdown note inside the current space.</span>
-                      </button>
-                      <button type="button" className="empty-card" onClick={() => void handleCreateJournalEntry()}>
-                        <strong>Daily Journal</strong>
-                        <span>Create a dated note inside the journal folder structure.</span>
-                      </button>
-                      <button
-                        type="button"
-                        className="empty-card"
-                        onClick={() => showNotice("Arrow keys move focus. Enter opens the selected file.")}
-                      >
-                        <strong>Keyboard Shortcuts</strong>
-                        <span>Use arrow keys in the explorer and press Enter to open.</span>
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </section>
-
-              {settings.showToc || documentPanel === "metadata" ? (
-                <aside className="toc-panel">
-                <div className="toc-panel-header">
-                  {documentPanel === "metadata" ? "Document Metadata" : "Table Of Contents"}
-                </div>
-                {documentPanel === "metadata" ? (
-                  <div className="metadata-panel metadata-panel-document">
-                    <div className="metadata-item">
-                      <span>Project</span>
-                      <strong>{projectName}</strong>
-                    </div>
-                    <div className="metadata-item">
-                      <span>Root</span>
-                      <strong>{rootPath || "Not selected"}</strong>
-                    </div>
-                    <div className="metadata-item">
-                      <span>Excluded paths</span>
-                      <strong>{activeExcludePaths.join(", ")}</strong>
-                    </div>
-                    <div className="metadata-item">
-                      <span>Markdown files</span>
-                      <strong>{files.length}</strong>
-                    </div>
-                    <div className="metadata-item">
-                      <span>Bookmarks</span>
-                      <strong>{bookmarkedFiles.length}</strong>
-                    </div>
-                    <div className="metadata-item">
-                      <span>Current file</span>
-                      <strong>{selectedFile?.relative_path || "None"}</strong>
-                    </div>
-                    <div className="metadata-item">
-                      <span>Git Status</span>
-                      <strong>
-                        {selectedFile ? gitStatuses[selectedFile.relative_path] || "clean" : "None"}
-                      </strong>
-                    </div>
-                    <div className="metadata-item">
-                      <span>Title</span>
-                      <strong>{frontmatter.title || prettifyNoteTitle(selectedFile?.relative_path || "") || "None"}</strong>
-                    </div>
-                    <div className="metadata-item">
-                      <span>Template</span>
-                      <strong>{frontmatter.template || "None"}</strong>
-                    </div>
-                    <div className="metadata-item">
-                      <span>Date</span>
-                      <strong>{frontmatter.date || "None"}</strong>
-                    </div>
-                    <div className="metadata-item">
-                      <span>Tags</span>
-                      <strong>{frontmatter.tags.length > 0 ? frontmatter.tags.join(", ") : "None"}</strong>
-                    </div>
-                    <div className="metadata-item">
-                      <span>Repository</span>
-                      <strong>{activeGitInfo?.is_repo ? "Git repository" : "Local folder"}</strong>
-                    </div>
-                    {activeGitInfo?.is_repo ? (
-                      <>
-                        <div className="metadata-item">
-                          <span>Branch</span>
-                          <strong>{activeGitInfo.branch || "Unknown"}</strong>
-                        </div>
-                        <div className="metadata-item">
-                          <span>Remote</span>
-                          <strong>{activeGitInfo.remote_url || "No origin remote"}</strong>
-                        </div>
-                        <div className="metadata-item metadata-history">
-                          <span>Recent file history</span>
-                          {selectedFile ? (
-                            fileHistory.length > 0 ? (
-                              <div className="history-list">
-                                {fileHistory.map((entry) => (
-                                  <div key={entry.commit_hash} className="history-entry">
-                                    <div className="history-entry-topline">
-                                      <strong>{entry.summary}</strong>
-                                      <code>{entry.short_hash}</code>
-                                    </div>
-                                    <div className="history-entry-meta">
-                                      <span>{entry.author_name}</span>
-                                      <span>{new Date(entry.committed_at).toLocaleString()}</span>
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                            ) : (
-                              <strong>No local commit history for this file yet.</strong>
-                            )
-                          ) : (
-                            <strong>Open a Markdown file to inspect its local git history.</strong>
-                          )}
-                        </div>
-                      </>
-                    ) : null}
-                  </div>
-                ) : viewMode === "preview" && headings.length > 0 ? (
-                  <div className="toc-list">
-                    {headings.map((heading, index) => (
-                      <button
-                        key={`${heading.id}-${index}`}
-                        type="button"
-                        className="toc-item"
-                        onClick={() => scrollToHeading(heading.id)}
-                        style={{ paddingLeft: `${(heading.level - 1) * 18 + 12}px` }}
-                      >
-                        {heading.label}
-                      </button>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="toc-empty">
-                    {viewMode === "source"
-                      ? "Switch to preview to use the outline."
-                      : "Open a markdown file with headings to populate this outline."}
-                  </div>
-                )}
-                </aside>
-              ) : null}
-            </div>
-          </section>
+          <DocumentWorkspace
+            viewMode={viewMode}
+            onSetViewMode={setViewMode}
+            selectedFile={selectedFile}
+            isDirty={isDirty}
+            isSavingFile={isSavingFile}
+            autosave={settings.autosave}
+            toolbar={settings.toolbar}
+            documentPanel={documentPanel}
+            onSave={handleSaveCurrentFile}
+            onCreateNote={handleCreateNote}
+            onCreateJournal={handleCreateJournalEntry}
+            onRename={handleRenameCurrentFile}
+            onPrint={handlePrint}
+            onDownload={handleDownload}
+            onToggleMetadata={() =>
+              setDocumentPanel((current) => (current === "metadata" ? "toc" : "metadata"))
+            }
+            onDelete={handleDeleteCurrentFile}
+            onOpenSettings={() => setIsSettingsOpen(true)}
+            error={error}
+            isLoadingFile={isLoadingFile}
+            previewScrollRef={previewScrollRef}
+            settingsShowToc={settings.showToc}
+            settingsSourceWrap={settings.sourceWrap}
+            headings={headings}
+            onScrollToHeading={scrollToHeading}
+            projectName={projectName}
+            rootPath={rootPath}
+            activeExcludePaths={activeExcludePaths}
+            fileCount={files.length}
+            bookmarkCount={bookmarkedFiles.length}
+            gitStatuses={gitStatuses}
+            frontmatter={frontmatter}
+            prettifyNoteTitle={prettifyNoteTitle}
+            activeGitInfo={activeGitInfo}
+            fileHistory={fileHistory}
+            bookmarks={bookmarks}
+            onToggleBookmark={toggleBookmark}
+            draftContent={draftContent}
+            onDraftContentChange={setDraftContent}
+            onShowNotice={showNotice}
+          />
           )}
         </main>
       </div>
       {notice ? <div className="app-notice">{notice}</div> : null}
-      <Dialog open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
-        <DialogContent className="grid grid-rows-[auto_minmax(0,1fr)_auto] p-0">
-          <DialogHeader className="settings-header-shadcn">
-            <div>
-              <DialogTitle>Settings</DialogTitle>
-              <DialogDescription>
-                Personalize the viewer without changing the core workflow.
-              </DialogDescription>
-            </div>
-            <DialogIconClose />
-          </DialogHeader>
-
-          <ScrollArea className="settings-body">
-            <div className="settings-grid">
-              <div className="settings-field">
-                <span>Theme</span>
-                <Select
-                  value={settings.theme}
-                  onValueChange={(value) =>
-                    updateSettings({ theme: value as AppSettings["theme"] })
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select theme" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="light">Light</SelectItem>
-                    <SelectItem value="dark">Dark</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="settings-field">
-                <span>Brand logo</span>
-                <div className="flex items-center gap-3">
-                  <button
-                    type="button"
-                    className="settings-brand-preview"
-                    onClick={handlePickBrandLogo}
-                    aria-label="Choose custom brand logo"
-                  >
-                    {settings.brandLogoDataUrl ? (
-                      <img
-                        src={settings.brandLogoDataUrl}
-                        alt="Selected brand logo"
-                        className="settings-brand-preview-image"
-                      />
-                    ) : (
-                      <PenTool className="icon" />
-                    )}
-                  </button>
-                  <div className="flex flex-wrap gap-2">
-                    <Button type="button" variant="secondary" onClick={handlePickBrandLogo}>
-                      Upload logo
-                    </Button>
-                    {settings.brandLogoDataUrl ? (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => updateSettings({ brandLogoDataUrl: "" })}
-                      >
-                        Reset
-                      </Button>
-                    ) : null}
-                  </div>
-                </div>
-                <small>Uses a simple pen icon by default. Upload a square logo to personalize the rail brand.</small>
-                <input
-                  ref={brandLogoInputRef}
-                  type="file"
-                  accept="image/*"
-                  className="sr-only"
-                  onChange={handleBrandLogoSelected}
-                />
-              </div>
-
-              <div className="settings-field">
-                <span>Auto-refresh</span>
-                <Select
-                  value={String(settings.autoRefreshMs)}
-                  onValueChange={(value) =>
-                    updateSettings({ autoRefreshMs: Number(value) })
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select refresh interval" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="2000">2 seconds</SelectItem>
-                    <SelectItem value="4000">4 seconds</SelectItem>
-                    <SelectItem value="8000">8 seconds</SelectItem>
-                    <SelectItem value="15000">15 seconds</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <label className="settings-toggle">
-                <Checkbox
-                  checked={settings.showToc}
-                  onCheckedChange={(checked) =>
-                    updateSettings({ showToc: checked === true })
-                  }
-                />
-                <div>
-                  <strong>Show table of contents</strong>
-                  <span>Keep the right-side outline visible while reading.</span>
-                </div>
-              </label>
-
-              <label className="settings-toggle">
-                <Checkbox
-                  checked={settings.sourceWrap}
-                  onCheckedChange={(checked) =>
-                    updateSettings({ sourceWrap: checked === true })
-                  }
-                />
-                <div>
-                  <strong>Wrap source lines</strong>
-                  <span>Wrap long lines in source mode instead of horizontal scrolling.</span>
-                </div>
-              </label>
-
-              <label className="settings-toggle">
-                <Checkbox
-                  checked={settings.autosave}
-                  onCheckedChange={(checked) =>
-                    updateSettings({ autosave: checked === true })
-                  }
-                />
-                <div>
-                  <strong>Autosave changes</strong>
-                  <span>Save the current note automatically after a short pause while editing.</span>
-                </div>
-              </label>
-
-              <label className="settings-toggle">
-                <Checkbox
-                  checked={viewMode === "source"}
-                  onCheckedChange={(checked) =>
-                    setViewMode(checked === true ? "source" : "preview")
-                  }
-                />
-                <div>
-                  <strong>Open in source mode</strong>
-                  <span>Quickly inspect raw Markdown without switching manually.</span>
-                </div>
-              </label>
-
-              <div className="settings-field settings-field-wide">
-                <span>Toolbar items</span>
-                <div className="settings-toolbar-grid">
-                  <TooltipProvider delayDuration={120}>
-                    {TOOLBAR_ITEM_OPTIONS.map((item) => {
-                      const Icon = item.icon;
-                      const isSelected = settings.toolbar[item.key];
-                      return (
-                        <button
-                          key={item.key}
-                          type="button"
-                          className="settings-toolbar-item"
-                          aria-pressed={isSelected}
-                          onClick={() =>
-                            updateSettings({
-                              toolbar: {
-                                ...settings.toolbar,
-                                [item.key]: !settings.toolbar[item.key]
-                              }
-                            })
-                          }
-                        >
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <span
-                                className={clsx(
-                                  "settings-toolbar-icon",
-                                  isSelected && "settings-toolbar-icon-selected"
-                                )}
-                                aria-hidden="true"
-                              >
-                                <Icon className="h-4.5 w-4.5" />
-                              </span>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              <div className="grid gap-0.5">
-                                <span>{item.label}</span>
-                                <span className="text-[color:var(--text-muted)]">
-                                  {item.description}
-                                </span>
-                              </div>
-                            </TooltipContent>
-                          </Tooltip>
-                        </button>
-                      );
-                    })}
-                  </TooltipProvider>
-                </div>
-              </div>
-
-              {activeSpace ? (
-                <div className="settings-field settings-field-wide">
-                  <span>Space excludes</span>
-                  <Textarea
-                    value={excludePathsInput}
-                    onChange={(event) => setExcludePathsInput(event.target.value)}
-                    placeholder={DEFAULT_SPACE_EXCLUDES.join("\n")}
-                    className="min-h-[140px] resize-y"
-                  />
-                  <small>
-                    One path per line. Matching folders are skipped during scan, search,
-                    summaries, and git badges.
-                  </small>
-                </div>
-              ) : null}
-            </div>
-          </ScrollArea>
-
-          <DialogFooter className="settings-footer-shadcn justify-between">
-            <div>
-              {activeSpace ? (
-                <Button
-                  type="button"
-                  variant="secondary"
-                  onClick={handleSaveSpaceExcludes}
-                >
-                  Save space excludes
-                </Button>
-              ) : null}
-            </div>
-            <div className="flex items-center gap-3">
-              <Button
-                type="button"
-                variant="secondary"
-                onClick={() => {
-                  setSettings(DEFAULT_SETTINGS);
-                  showNotice("Settings reset");
-                }}
-              >
-                Reset defaults
-              </Button>
-              <Button type="button" onClick={() => setIsSettingsOpen(false)}>
-                Done
-              </Button>
-            </div>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-      <Dialog open={Boolean(noteDialog)} onOpenChange={(open) => !open && setNoteDialog(null)}>
-        {noteDialog ? (
-          <DialogContent className="note-dialog grid grid-rows-[auto_minmax(0,1fr)_auto] p-0">
-            <DialogHeader className="settings-header-shadcn">
-              <div>
-                <DialogTitle>{noteDialog.title}</DialogTitle>
-                <DialogDescription>{noteDialog.description}</DialogDescription>
-              </div>
-              <DialogIconClose />
-            </DialogHeader>
-
-            <div className="settings-grid">
-              {noteDialog.mode === "rename" ? (
-                <div className="settings-field">
-                  <Label>Markdown path</Label>
-                  <Input
-                    type="text"
-                    value={notePathInput}
-                    onChange={(event) => setNotePathInput(event.target.value)}
-                    placeholder="notes/untitled.md"
-                    autoFocus
-                  />
-                </div>
-              ) : (
-                <>
-                  <div className="settings-field">
-                    <Label>Parent folder</Label>
-                    <Select
-                      value={noteDirectoryInput}
-                      onValueChange={handleNoteDirectoryChange}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Choose a folder" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {directoryOptions.map((directory) => (
-                          <SelectItem key={directory || "root"} value={directory}>
-                            {directory || "Root"}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <div className="inline-field">
-                      <Button type="button" variant="secondary" onClick={handleUseCurrentFolder}>
-                        Use current folder
-                      </Button>
-                    </div>
-                  </div>
-                  <div className="settings-field">
-                    <Label>Filename</Label>
-                    <Input
-                      type="text"
-                      value={noteNameInput}
-                      onChange={(event) => handleNoteNameChange(event.target.value)}
-                      placeholder="untitled.md"
-                      autoFocus
-                    />
-                  </div>
-                  <div className="settings-field settings-field-wide">
-                    <Label>Resulting path</Label>
-                    <Input type="text" value={notePathInput} readOnly />
-                  </div>
-                </>
-              )}
-            </div>
-
-            <DialogFooter className="settings-footer-shadcn">
-              <DialogClose asChild>
-                <Button type="button" variant="secondary">
-                  Cancel
-                </Button>
-              </DialogClose>
-              <Button type="button" onClick={() => void handleSubmitNoteDialog()}>
-                {noteDialog.confirmLabel}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        ) : null}
-      </Dialog>
-      <Dialog open={Boolean(cloneDialog)} onOpenChange={(open) => !open && setCloneDialog(null)}>
-        {cloneDialog ? (
-          <DialogContent className="note-dialog grid grid-rows-[auto_minmax(0,1fr)_auto] p-0">
-            <DialogHeader className="settings-header-shadcn">
-              <div>
-                <DialogTitle>Clone Repository</DialogTitle>
-                <DialogDescription>
-                  Clone a public or already-authenticated git repository into a local space.
-                </DialogDescription>
-              </div>
-              <DialogIconClose />
-            </DialogHeader>
-
-            <div className="settings-grid">
-              <div className="settings-field">
-                <Label>Repository URL</Label>
-                <Input
-                  type="text"
-                  value={cloneDialog.repoUrl}
-                  onChange={(event) =>
-                    setCloneDialog((current) => (current ? { ...current, repoUrl: event.target.value } : current))
-                  }
-                  placeholder="https://github.com/owner/repo.git"
-                  autoFocus
-                />
-              </div>
-
-              <div className="settings-field">
-                <Label>Destination Folder</Label>
-                <div className="inline-field">
-                  <Input
-                    type="text"
-                    value={cloneDialog.destinationParent}
-                    onChange={(event) =>
-                      setCloneDialog((current) =>
-                        current ? { ...current, destinationParent: event.target.value } : current
-                      )
-                    }
-                    placeholder="/Users/you/repos"
-                  />
-                  <Button type="button" variant="secondary" onClick={() => void chooseCloneDestination()}>
-                    Choose
-                  </Button>
-                </div>
-              </div>
-
-              <div className="settings-field">
-                <Label>Local Folder Name</Label>
-                <Input
-                  type="text"
-                  value={cloneDialog.directoryName}
-                  onChange={(event) =>
-                    setCloneDialog((current) =>
-                      current ? { ...current, directoryName: event.target.value } : current
-                    )
-                  }
-                  placeholder="repo-name"
-                />
-              </div>
-            </div>
-
-            <DialogFooter className="settings-footer-shadcn">
-              <DialogClose asChild>
-                <Button type="button" variant="secondary">
-                  Cancel
-                </Button>
-              </DialogClose>
-              <Button type="button" onClick={() => void handleSubmitCloneDialog()}>
-                Clone Repository
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        ) : null}
-      </Dialog>
+      <SettingsDialog
+        open={isSettingsOpen}
+        onOpenChange={setIsSettingsOpen}
+        settings={settings}
+        onUpdateSettings={updateSettings}
+        viewMode={viewMode}
+        onSetViewMode={setViewMode}
+        toolbarItemOptions={TOOLBAR_ITEM_OPTIONS}
+        brandLogoInputRef={brandLogoInputRef}
+        onPickBrandLogo={handlePickBrandLogo}
+        onBrandLogoSelected={handleBrandLogoSelected}
+        activeSpace={activeSpace}
+        excludePathsInput={excludePathsInput}
+        onExcludePathsInputChange={setExcludePathsInput}
+        defaultSpaceExcludes={DEFAULT_SPACE_EXCLUDES}
+        onSaveSpaceExcludes={handleSaveSpaceExcludes}
+        onResetDefaults={() => {
+          setSettings(DEFAULT_SETTINGS);
+          showNotice("Settings reset");
+        }}
+      />
+      <NoteDialog
+        noteDialog={noteDialog}
+        notePathInput={notePathInput}
+        noteDirectoryInput={noteDirectoryInput}
+        noteNameInput={noteNameInput}
+        directoryOptions={directoryOptions}
+        onOpenChange={(open) => !open && setNoteDialog(null)}
+        onNotePathInputChange={setNotePathInput}
+        onNoteDirectoryChange={handleNoteDirectoryChange}
+        onUseCurrentFolder={handleUseCurrentFolder}
+        onNoteNameChange={handleNoteNameChange}
+        onSubmit={handleSubmitNoteDialog}
+      />
+      <CloneDialog
+        cloneDialog={cloneDialog}
+        onOpenChange={(open) => !open && setCloneDialog(null)}
+        onRepoUrlChange={(value) =>
+          setCloneDialog((current) => (current ? { ...current, repoUrl: value } : current))
+        }
+        onDestinationParentChange={(value) =>
+          setCloneDialog((current) => (current ? { ...current, destinationParent: value } : current))
+        }
+        onChooseDestination={chooseCloneDestination}
+        onDirectoryNameChange={(value) =>
+          setCloneDialog((current) => (current ? { ...current, directoryName: value } : current))
+        }
+        onSubmit={handleSubmitCloneDialog}
+      />
     </div>
   );
 }

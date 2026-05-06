@@ -282,7 +282,6 @@ fn search_markdown(
     path: String,
     query: String,
     exclude_paths: Option<Vec<String>>,
-    state: State<'_, AppState>,
 ) -> Result<Vec<SearchResult>, String> {
     let root = canonicalize_directory(Path::new(&path))?;
     let excludes = normalize_excludes(exclude_paths);
@@ -333,12 +332,6 @@ fn search_markdown(
 
     results.sort_by(|left, right| left.relative_path.cmp(&right.relative_path));
 
-    let mut selected_root = state
-        .selected_root
-        .lock()
-        .map_err(|_| "Failed to access application state".to_string())?;
-    *selected_root = Some(root);
-
     Ok(results)
 }
 
@@ -346,7 +339,6 @@ fn search_markdown(
 fn summarize_space(
     path: String,
     exclude_paths: Option<Vec<String>>,
-    state: State<'_, AppState>,
 ) -> Result<SpaceSummary, String> {
     let root = canonicalize_directory(Path::new(&path))?;
     let excludes = normalize_excludes(exclude_paths);
@@ -378,12 +370,6 @@ fn summarize_space(
             }
         }
     }
-
-    let mut selected_root = state
-        .selected_root
-        .lock()
-        .map_err(|_| "Failed to access application state".to_string())?;
-    *selected_root = Some(root);
 
     Ok(SpaceSummary {
         note_count,

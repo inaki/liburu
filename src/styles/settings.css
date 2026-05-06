@@ -1,0 +1,188 @@
+.settings-body {
+  min-height: 0;
+  overflow: auto;
+}
+
+.settings-header,
+.settings-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 20px;
+}
+
+.settings-header {
+  border-bottom: 1px solid var(--outline);
+}
+
+.settings-header h3 {
+  margin: 0;
+  font-size: 1.15rem;
+}
+
+.settings-header p {
+  margin: 6px 0 0;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.settings-grid {
+  display: grid;
+  gap: 16px;
+  padding: 20px;
+}
+
+.settings-field,
+.settings-toggle {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid var(--outline);
+  border-radius: 10px;
+  background: var(--surface-lowest);
+}
+
+.settings-field span,
+.settings-toggle strong {
+  color: var(--text);
+}
+
+.settings-field small {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
+.settings-checklist {
+  display: grid;
+  gap: 10px;
+}
+
+.settings-toolbar-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 16px;
+}
+
+.settings-toolbar-item {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+
+.settings-toolbar-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--outline);
+  border-radius: 10px;
+  background: var(--surface-low);
+  color: var(--text-muted);
+  transition: transform 140ms ease, box-shadow 140ms ease, background-color 140ms ease, border-color 140ms ease, color 140ms ease;
+}
+
+.settings-toolbar-item:hover .settings-toolbar-icon,
+.settings-toolbar-item:focus-visible .settings-toolbar-icon {
+  transform: translateY(-1px);
+  border-color: var(--outline-strong);
+  background: var(--surface-lowest);
+  color: var(--text);
+  box-shadow: 0 8px 18px color-mix(in srgb, var(--surface-high) 18%, transparent);
+}
+
+.settings-toolbar-item:focus-visible {
+  outline: none;
+}
+
+.settings-toolbar-icon-selected {
+  border-color: var(--indigo);
+  background: var(--indigo);
+  color: #fff;
+}
+
+.settings-toolbar-item:hover .settings-toolbar-icon-selected,
+.settings-toolbar-item:focus-visible .settings-toolbar-icon-selected {
+  border-color: var(--indigo);
+  background: color-mix(in srgb, var(--indigo) 92%, white);
+  color: #fff;
+  box-shadow: 0 10px 22px color-mix(in srgb, var(--indigo) 24%, transparent);
+}
+
+.settings-toolbar-icon-selected svg {
+  color: #fff;
+  stroke: currentColor;
+}
+
+.settings-brand-preview {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border: 1px solid var(--outline);
+  border-radius: 12px;
+  background: var(--surface-low);
+  color: var(--indigo);
+  overflow: hidden;
+  transition: border-color 140ms ease, background-color 140ms ease, transform 140ms ease;
+}
+
+.settings-brand-preview:hover,
+.settings-brand-preview:focus-visible {
+  border-color: var(--outline-strong);
+  background: var(--surface-lowest);
+  transform: translateY(-1px);
+  outline: none;
+}
+
+.settings-brand-preview .icon {
+  width: 1.2rem;
+  height: 1.2rem;
+}
+
+.settings-brand-preview-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.settings-toggle-compact {
+  padding: 12px 14px;
+}
+
+.settings-field-wide {
+  grid-column: 1 / -1;
+}
+
+.inline-field {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+}
+
+.note-dialog {
+  width: min(560px, 100%);
+}
+
+.settings-toggle {
+  grid-template-columns: auto 1fr;
+  align-items: start;
+}
+
+.settings-toggle span {
+  display: block;
+  margin-top: 4px;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+.settings-footer {
+  border-top: 1px solid var(--outline);
+}

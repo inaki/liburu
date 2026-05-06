@@ -1,0 +1,12 @@
+.app-notice {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 30;
+  padding: 12px 14px;
+  border: 1px solid var(--outline-strong);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface-low) 96%, transparent);
+  color: var(--text);
+  box-shadow: var(--panel-shadow);
+}
