@@ -4,6 +4,8 @@ import { open } from "@tauri-apps/plugin-dialog";
 import clsx from "clsx";
 import {
   Bookmark,
+  ChevronDown,
+  ChevronRight,
   Download,
   FileText,
   Folder,
@@ -16,7 +18,8 @@ import {
   Share2,
   SquareTerminal,
   Star,
-  UserCircle2
+  UserCircle2,
+  Warehouse
 } from "lucide-react";
 
 type MdFile = {
@@ -227,9 +230,11 @@ function TreeBranch({
                 onToggle(row.path);
               }}
             >
-              <span className="explorer-row-icon explorer-chevron">
-                {expanded.has(row.path) ? "⌄" : "›"}
-              </span>
+              {expanded.has(row.path) ? (
+                <ChevronDown className="icon explorer-row-icon explorer-chevron" />
+              ) : (
+                <ChevronRight className="icon explorer-row-icon explorer-chevron" />
+              )}
               <Folder className="icon explorer-row-icon folder" />
               <span className="explorer-row-label">{row.name}</span>
             </button>
@@ -254,7 +259,6 @@ function TreeBranch({
             <span className="explorer-row-icon spacer" />
             <FileText className="icon explorer-row-icon file" />
             <span className="explorer-row-label">{row.name}</span>
-            {isSelected ? <span className="explorer-row-dot" /> : null}
           </button>
         );
       })}
@@ -1063,7 +1067,10 @@ export default function App() {
                   aria-label="Bookmark"
                   onClick={() => toggleBookmark(selectedFile)}
                 >
-                  <Star className="icon" />
+                  <Star
+                    className="icon"
+                    fill={selectedFile && bookmarks.includes(selectedFile.path) ? "currentColor" : "none"}
+                  />
                 </button>
                 <button
                   type="button"
@@ -1087,7 +1094,7 @@ export default function App() {
                   ) : (
                     <div className="preview-scroll" ref={previewScrollRef}>
                       <div className="preview-breadcrumb">
-                        <span>⌂</span>
+                        <Warehouse className="icon" />
                         <span>/</span>
                         <span>{selectedFile.relative_path}</span>
                       </div>
