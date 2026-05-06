@@ -242,6 +242,9 @@ function getGitStatusBadgeClass(status: string) {
 const railButtonClassName =
   "grid h-[42px] w-[42px] place-items-center rounded-[6px] bg-transparent text-[color:var(--text-muted)] transition-colors hover:bg-[color:var(--surface-highest)] hover:text-[color:var(--text)]";
 
+const railButtonActiveClassName =
+  "!bg-[color:var(--surface-highest)] !text-[color:var(--indigo)] shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--indigo)_16%,transparent)]";
+
 function formatTodayPath(date = new Date()) {
   const year = String(date.getFullYear());
   const month = String(date.getMonth() + 1).padStart(2, "0");
@@ -2174,14 +2177,14 @@ export default function App() {
               <button
                 type="button"
                 className={clsx(
-                  "grid h-[42px] w-[42px] place-items-center overflow-hidden rounded-[6px] border border-[color:var(--outline-strong)] bg-[color:var(--surface-high)] font-bold text-[color:var(--indigo)]"
+                  "grid place-items-center overflow-hidden bg-transparent font-bold text-[color:var(--indigo)]"
                 )}
                 onClick={handleOpenHome}
               >
                 {settings.brandLogoDataUrl ? (
-                  <img src={settings.brandLogoDataUrl} alt="App logo" className="h-full w-full object-cover" />
+                  <img src={settings.brandLogoDataUrl} alt="App logo" className="h-8 w-8 object-contain" />
                 ) : (
-                  <PenTool className="icon h-5 w-5" />
+                  <PenTool className="icon h-8 w-8" />
                 )}
               </button>
             </TooltipTrigger>
@@ -2195,7 +2198,7 @@ export default function App() {
                   type="button"
                   className={clsx(
                     railButtonClassName,
-                    currentView === "home" && "bg-[color:var(--surface-highest)] text-[color:var(--indigo)]"
+                    currentView === "home" && railButtonActiveClassName
                   )}
                   aria-label="Home"
                   onClick={handleOpenHome}
@@ -2211,7 +2214,7 @@ export default function App() {
                   type="button"
                   className={clsx(
                     railButtonClassName,
-                    currentView === "search" && "bg-[color:var(--surface-highest)] text-[color:var(--indigo)]"
+                    currentView === "search" && railButtonActiveClassName
                   )}
                   aria-label="Search"
                   onClick={handleOpenWorkspaceSearch}
@@ -2229,7 +2232,7 @@ export default function App() {
                     railButtonClassName,
                     currentView === "space" &&
                       activePanel === "explorer" &&
-                      "bg-[color:var(--surface-highest)] text-[color:var(--indigo)]"
+                      railButtonActiveClassName
                   )}
                   aria-label="Explorer"
                   onClick={() => {
@@ -2250,7 +2253,7 @@ export default function App() {
                     railButtonClassName,
                     currentView === "space" &&
                       activePanel === "bookmarks" &&
-                      "bg-[color:var(--surface-highest)] text-[color:var(--indigo)]"
+                      railButtonActiveClassName
                   )}
                   aria-label="Bookmarks"
                   onClick={() => {

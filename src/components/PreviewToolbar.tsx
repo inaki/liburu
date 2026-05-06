@@ -150,7 +150,11 @@ export function PreviewToolbar({
           <ToolbarIconButton
             ariaLabel="Document metadata"
             onClick={onToggleMetadata}
-            className={documentPanel === "metadata" ? "text-[color:var(--indigo-soft)]" : undefined}
+            className={
+              documentPanel === "metadata"
+                ? "!bg-transparent !text-[color:var(--indigo)] hover:!bg-[color:var(--surface-high)]"
+                : undefined
+            }
           >
             <Info className="icon" />
           </ToolbarIconButton>

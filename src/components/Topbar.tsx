@@ -61,7 +61,7 @@ export function Topbar({
           type="button"
           variant="ghost"
           size="icon"
-          className="h-[34px] w-[34px] rounded-[6px] border border-[color:var(--outline)] bg-[color:var(--surface-low)] text-[color:var(--text-muted)] hover:bg-[color:var(--surface-high)] hover:text-[color:var(--text)]"
+          className="h-[34px] w-[34px] rounded-[6px] bg-transparent text-[color:var(--text-muted)] hover:bg-[color:var(--surface-high)] hover:text-[color:var(--text)]"
           aria-label="Profile"
           onClick={onProfile}
         >

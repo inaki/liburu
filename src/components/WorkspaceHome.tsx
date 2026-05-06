@@ -5,6 +5,7 @@ import {
   ChevronDown,
   ChevronUp,
   Folder,
+  LoaderCircle,
   Pin,
   Trash2
 } from "lucide-react";
@@ -88,17 +89,17 @@ export function WorkspaceHome({
     "flex items-center justify-between border-b border-[color:var(--outline)] px-[18px] pb-3 pt-[18px] text-[0.76rem] font-bold uppercase tracking-[0.12em] text-[color:var(--text-muted)]";
   const homeListClass = "grid content-start gap-2.5 overflow-auto p-4";
   const baseCardClass =
-    "grid w-full gap-2 rounded-[12px] border border-[color:var(--outline)] bg-[color:var(--surface-lowest)] p-[14px] text-left text-[color:var(--text)] transition-colors hover:bg-[color:var(--surface-high)]";
+    "grid w-full gap-2 rounded-[12px] border border-[color:var(--outline)] bg-[color:var(--surface-lowest)] p-[14px] text-left text-[color:var(--text)] transition-colors hover:bg-[color:var(--surface-high)] cursor-pointer";
   const badgeClass =
     "inline-flex w-fit rounded-full bg-[color:color-mix(in_srgb,var(--indigo-soft)_18%,transparent)] px-2 py-1 text-[0.7rem] font-bold uppercase tracking-[0.04em] text-[color:var(--indigo-soft)]";
   const loadingBadgeClass =
-    "inline-flex w-fit rounded-full bg-[color:color-mix(in_srgb,var(--surface-highest)_82%,transparent)] px-2 py-1 text-[0.7rem] font-bold uppercase tracking-[0.04em] text-[color:var(--text)]";
+    "inline-flex w-fit items-center gap-1.5 rounded-full bg-[color:color-mix(in_srgb,var(--surface-highest)_82%,transparent)] px-2 py-1 text-[0.7rem] font-bold uppercase tracking-[0.04em] text-[color:var(--text)]";
   const secondaryBadgeClass =
     "inline-flex w-fit rounded-full bg-[color:color-mix(in_srgb,var(--surface-highest)_88%,transparent)] px-2 py-1 text-[0.7rem] font-bold uppercase tracking-[0.04em] text-[color:var(--text-muted)]";
   const utilityActionButtonClass =
     "h-7 w-7 rounded-[8px] text-[color:var(--text-muted)] hover:bg-[color:var(--surface-high)] hover:text-[color:var(--text)]";
   const templateCardClass =
-    "grid w-full gap-1.5 rounded-[12px] border border-[color:var(--outline)] bg-[color:var(--surface-lowest)] p-[14px] text-left text-[color:var(--text)] transition-colors hover:bg-[color:var(--surface-high)]";
+    "grid w-full cursor-pointer gap-1.5 rounded-[12px] border border-[color:var(--outline)] bg-[color:var(--surface-lowest)] p-[14px] text-left text-[color:var(--text)] transition-colors hover:bg-[color:var(--surface-high)]";
 
   return (
     <section className="workspace-home">
@@ -156,20 +157,25 @@ export function WorkspaceHome({
               orderedVisibleSpaces.map((space, index) => (
                 <div
                   key={space.id}
-                  className={clsx(baseCardClass, openingSpacePath === space.localPath && "cursor-progress opacity-90")}
+                  role="button"
+                  tabIndex={openingSpacePath === space.localPath ? -1 : 0}
+                  className={clsx(
+                    baseCardClass,
+                    openingSpacePath === space.localPath && "cursor-progress opacity-90 pointer-events-none"
+                  )}
+                  onClick={() => void onOpenSpace(space.localPath)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      void onOpenSpace(space.localPath);
+                    }
+                  }}
                 >
                   <div className="flex items-start justify-between gap-3">
-                    <button
-                      type="button"
-                      className="inline-flex items-start justify-start bg-transparent p-0 text-left text-inherit disabled:cursor-progress disabled:opacity-70"
-                      disabled={openingSpacePath === space.localPath}
-                      onClick={() => void onOpenSpace(space.localPath)}
-                    >
-                      <div className="flex items-center gap-2.5 font-bold">
-                        <Folder className="icon" />
-                        <span>{getSpaceLabel(space)}</span>
-                      </div>
-                    </button>
+                    <div className="flex items-center gap-2.5 font-bold">
+                      <Folder className="icon" />
+                      <span>{getSpaceLabel(space)}</span>
+                    </div>
                     <div className="inline-flex items-center gap-1.5">
                       <Button
                         type="button"
@@ -180,8 +186,12 @@ export function WorkspaceHome({
                           space.isPinned &&
                             "bg-[color:color-mix(in_srgb,var(--indigo-soft)_14%,transparent)] text-[color:var(--indigo-soft)]"
                         )}
+                        disabled={openingSpacePath === space.localPath}
                         aria-label={space.isPinned ? "Unpin space" : "Pin space"}
-                        onClick={() => onTogglePinnedSpace(space.id)}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          onTogglePinnedSpace(space.id);
+                        }}
                       >
                         <Pin className="icon" />
                       </Button>
@@ -190,9 +200,12 @@ export function WorkspaceHome({
                         variant="ghost"
                         size="icon"
                         className={utilityActionButtonClass}
+                        disabled={openingSpacePath === space.localPath || index === 0}
                         aria-label="Move space up"
-                        disabled={index === 0}
-                        onClick={() => onMoveSpace(space.id, -1)}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          onMoveSpace(space.id, -1);
+                        }}
                       >
                         <ChevronUp className="icon" />
                       </Button>
@@ -201,9 +214,12 @@ export function WorkspaceHome({
                         variant="ghost"
                         size="icon"
                         className={utilityActionButtonClass}
+                        disabled={openingSpacePath === space.localPath || index === orderedVisibleSpaces.length - 1}
                         aria-label="Move space down"
-                        disabled={index === orderedVisibleSpaces.length - 1}
-                        onClick={() => onMoveSpace(space.id, 1)}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          onMoveSpace(space.id, 1);
+                        }}
                       >
                         <ChevronDown className="icon" />
                       </Button>
@@ -212,8 +228,12 @@ export function WorkspaceHome({
                         variant="ghost"
                         size="icon"
                         className={utilityActionButtonClass}
+                        disabled={openingSpacePath === space.localPath}
                         aria-label={space.isArchived ? "Restore space" : "Archive space"}
-                        onClick={() => onToggleArchivedSpace(space.id)}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          onToggleArchivedSpace(space.id);
+                        }}
                       >
                         <Archive className="icon" />
                       </Button>
@@ -222,8 +242,12 @@ export function WorkspaceHome({
                         variant="ghost"
                         size="icon"
                         className={utilityActionButtonClass}
+                        disabled={openingSpacePath === space.localPath}
                         aria-label="Remove space"
-                        onClick={() => onRemoveSpace(space.id)}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          onRemoveSpace(space.id);
+                        }}
                       >
                         <Trash2 className="icon" />
                       </Button>
@@ -235,7 +259,10 @@ export function WorkspaceHome({
                     </div>
                   ) : null}
                   {openingSpacePath === space.localPath ? (
-                    <div className={loadingBadgeClass}>Opening…</div>
+                    <div className={loadingBadgeClass}>
+                      <LoaderCircle className="icon h-3.5 w-3.5 animate-spin" />
+                      <span>Opening…</span>
+                    </div>
                   ) : null}
                   {space.isPinned ? <div className={secondaryBadgeClass}>Pinned</div> : null}
                   <div className="break-words text-[0.78rem] leading-[1.45] text-[color:var(--text-muted)]">
@@ -256,123 +283,6 @@ export function WorkspaceHome({
               ))
             ) : (
               <div className="explorer-empty">Add your first space to start building the workspace.</div>
-            )}
-          </div>
-        </section>
-
-        <section className={homePanelClass}>
-          <div className={homePanelHeaderClass}>
-            <span>Archived Spaces</span>
-            <strong>{archivedSpaces.length}</strong>
-          </div>
-          <div className={homeListClass}>
-            {archivedSpaces.length > 0 ? (
-              archivedSpaces.map((space) => (
-                <div
-                  key={`archived:${space.id}`}
-                  className={clsx(baseCardClass, openingSpacePath === space.localPath && "cursor-progress opacity-90")}
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <button
-                      type="button"
-                      className="inline-flex items-start justify-start bg-transparent p-0 text-left text-inherit disabled:cursor-progress disabled:opacity-70"
-                      disabled={openingSpacePath === space.localPath}
-                      onClick={() => void onOpenSpace(space.localPath)}
-                    >
-                      <div className="flex items-center gap-2.5 font-bold">
-                        <Folder className="icon" />
-                        <span>{getSpaceLabel(space)}</span>
-                      </div>
-                    </button>
-                    <div className="inline-flex items-center gap-1.5">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className={utilityActionButtonClass}
-                        aria-label="Restore space"
-                        onClick={() => onToggleArchivedSpace(space.id)}
-                      >
-                        <ArchiveRestore className="icon" />
-                      </Button>
-                    </div>
-                  </div>
-                  {openingSpacePath === space.localPath ? (
-                    <div className={loadingBadgeClass}>Opening…</div>
-                  ) : null}
-                  <div className="break-words text-[0.78rem] leading-[1.45] text-[color:var(--text-muted)]">
-                    {space.localPath}
-                  </div>
-                </div>
-              ))
-            ) : (
-              <div className="explorer-empty">Archived spaces stay here until you restore them.</div>
-            )}
-          </div>
-        </section>
-
-        <section className={homePanelClass}>
-          <div className={homePanelHeaderClass}>
-            <span>Recent Notes</span>
-            <strong>{recentNotes.length}</strong>
-          </div>
-          <div className={homeListClass}>
-            {recentNotes.length > 0 ? (
-              recentNotes.map((note) => (
-                <button
-                  key={`${note.spaceId}:${note.path}`}
-                  type="button"
-                  className={clsx(
-                    baseCardClass,
-                    openingRecentNoteKey === `${note.spaceId}:${note.path}` && "cursor-progress opacity-90"
-                  )}
-                  disabled={openingRecentNoteKey === `${note.spaceId}:${note.path}`}
-                  onClick={() => void onOpenRecentNote(note)}
-                >
-                  <div className="break-words text-[0.9rem] font-bold">{note.relativePath}</div>
-                  <div className="break-words text-[0.78rem] leading-[1.45] text-[color:var(--text-muted)]">
-                    {note.spaceName}
-                  </div>
-                  {openingRecentNoteKey === `${note.spaceId}:${note.path}` ? (
-                    <div className={loadingBadgeClass}>Opening…</div>
-                  ) : null}
-                </button>
-              ))
-            ) : (
-              <div className="explorer-empty">Open a few notes and they will appear here.</div>
-            )}
-          </div>
-        </section>
-
-        <section className={homePanelClass}>
-          <div className={homePanelHeaderClass}>
-            <span>Bookmarked Notes</span>
-            <strong>{homeBookmarkedNotes.length}</strong>
-          </div>
-          <div className={homeListClass}>
-            {homeBookmarkedNotes.length > 0 ? (
-              homeBookmarkedNotes.map((note) => (
-                <button
-                  key={`bookmark:${note.spaceId}:${note.path}`}
-                  type="button"
-                  className={clsx(
-                    baseCardClass,
-                    openingRecentNoteKey === `${note.spaceId}:${note.path}` && "cursor-progress opacity-90"
-                  )}
-                  disabled={openingRecentNoteKey === `${note.spaceId}:${note.path}`}
-                  onClick={() => void onOpenRecentNote(note)}
-                >
-                  <div className="break-words text-[0.9rem] font-bold">{note.relativePath}</div>
-                  <div className="break-words text-[0.78rem] leading-[1.45] text-[color:var(--text-muted)]">
-                    {note.spaceName}
-                  </div>
-                  {openingRecentNoteKey === `${note.spaceId}:${note.path}` ? (
-                    <div className={loadingBadgeClass}>Opening…</div>
-                  ) : null}
-                </button>
-              ))
-            ) : (
-              <div className="explorer-empty">Bookmark notes to pin them on the workspace home.</div>
             )}
           </div>
         </section>
@@ -411,6 +321,143 @@ export function WorkspaceHome({
                 Track attendees, agenda, decisions, and follow-ups.
               </span>
             </button>
+          </div>
+        </section>
+
+        <section className={homePanelClass}>
+          <div className={homePanelHeaderClass}>
+            <span>Recent Notes</span>
+            <strong>{recentNotes.length}</strong>
+          </div>
+          <div className={homeListClass}>
+            {recentNotes.length > 0 ? (
+              recentNotes.map((note) => (
+                <button
+                  key={`${note.spaceId}:${note.path}`}
+                  type="button"
+                  className={clsx(
+                    baseCardClass,
+                    openingRecentNoteKey === `${note.spaceId}:${note.path}` &&
+                      "cursor-progress opacity-90 pointer-events-none"
+                  )}
+                  disabled={openingRecentNoteKey === `${note.spaceId}:${note.path}`}
+                  onClick={() => void onOpenRecentNote(note)}
+                >
+                  <div className="break-words text-[0.9rem] font-bold">{note.relativePath}</div>
+                  <div className="break-words text-[0.78rem] leading-[1.45] text-[color:var(--text-muted)]">
+                    {note.spaceName}
+                  </div>
+                  {openingRecentNoteKey === `${note.spaceId}:${note.path}` ? (
+                    <div className={loadingBadgeClass}>
+                      <LoaderCircle className="icon h-3.5 w-3.5 animate-spin" />
+                      <span>Opening…</span>
+                    </div>
+                  ) : null}
+                </button>
+              ))
+            ) : (
+              <div className="explorer-empty">Open a few notes and they will appear here.</div>
+            )}
+          </div>
+        </section>
+
+        <section className={homePanelClass}>
+          <div className={homePanelHeaderClass}>
+            <span>Bookmarked Notes</span>
+            <strong>{homeBookmarkedNotes.length}</strong>
+          </div>
+          <div className={homeListClass}>
+            {homeBookmarkedNotes.length > 0 ? (
+              homeBookmarkedNotes.map((note) => (
+                <button
+                  key={`bookmark:${note.spaceId}:${note.path}`}
+                  type="button"
+                  className={clsx(
+                    baseCardClass,
+                    openingRecentNoteKey === `${note.spaceId}:${note.path}` &&
+                      "cursor-progress opacity-90 pointer-events-none"
+                  )}
+                  disabled={openingRecentNoteKey === `${note.spaceId}:${note.path}`}
+                  onClick={() => void onOpenRecentNote(note)}
+                >
+                  <div className="break-words text-[0.9rem] font-bold">{note.relativePath}</div>
+                  <div className="break-words text-[0.78rem] leading-[1.45] text-[color:var(--text-muted)]">
+                    {note.spaceName}
+                  </div>
+                  {openingRecentNoteKey === `${note.spaceId}:${note.path}` ? (
+                    <div className={loadingBadgeClass}>
+                      <LoaderCircle className="icon h-3.5 w-3.5 animate-spin" />
+                      <span>Opening…</span>
+                    </div>
+                  ) : null}
+                </button>
+              ))
+            ) : (
+              <div className="explorer-empty">Bookmark notes to pin them on the workspace home.</div>
+            )}
+          </div>
+        </section>
+
+        <section className={homePanelClass}>
+          <div className={homePanelHeaderClass}>
+            <span>Archived Spaces</span>
+            <strong>{archivedSpaces.length}</strong>
+          </div>
+          <div className={homeListClass}>
+            {archivedSpaces.length > 0 ? (
+              archivedSpaces.map((space) => (
+                <div
+                  key={`archived:${space.id}`}
+                  role="button"
+                  tabIndex={openingSpacePath === space.localPath ? -1 : 0}
+                  className={clsx(
+                    baseCardClass,
+                    openingSpacePath === space.localPath && "cursor-progress opacity-90 pointer-events-none"
+                  )}
+                  onClick={() => void onOpenSpace(space.localPath)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      void onOpenSpace(space.localPath);
+                    }
+                  }}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-center gap-2.5 font-bold">
+                      <Folder className="icon" />
+                      <span>{getSpaceLabel(space)}</span>
+                    </div>
+                    <div className="inline-flex items-center gap-1.5">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className={utilityActionButtonClass}
+                        disabled={openingSpacePath === space.localPath}
+                        aria-label="Restore space"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          onToggleArchivedSpace(space.id);
+                        }}
+                      >
+                        <ArchiveRestore className="icon" />
+                      </Button>
+                    </div>
+                  </div>
+                  {openingSpacePath === space.localPath ? (
+                    <div className={loadingBadgeClass}>
+                      <LoaderCircle className="icon h-3.5 w-3.5 animate-spin" />
+                      <span>Opening…</span>
+                    </div>
+                  ) : null}
+                  <div className="break-words text-[0.78rem] leading-[1.45] text-[color:var(--text-muted)]">
+                    {space.localPath}
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="explorer-empty">Archived spaces stay here until you restore them.</div>
+            )}
           </div>
         </section>
       </div>
