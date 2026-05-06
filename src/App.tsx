@@ -4,23 +4,28 @@ import { open } from "@tauri-apps/plugin-dialog";
 import clsx from "clsx";
 import {
   Bookmark,
+  CalendarDays,
   ChevronDown,
   ChevronRight,
   Download,
   FileText,
+  FilePlus2,
   Folder,
   HelpCircle,
   Info,
   Pencil,
+  PencilLine,
   Printer,
   RefreshCw,
   Settings,
   Share2,
   SquareTerminal,
   Star,
+  Trash2,
   UserCircle2,
   Warehouse
 } from "lucide-react";
+import { useWorkspace } from "./features/spaces/useWorkspace";
 
 type MdFile = {
   path: string;
@@ -51,6 +56,14 @@ type HeadingItem = {
   level: number;
 };
 
+type SearchResult = {
+  path: string;
+  name: string;
+  relative_path: string;
+  snippet: string;
+  matched_on_path: boolean;
+};
+
 type AppSettings = {
   theme: "dark" | "light";
   showToc: boolean;
@@ -58,11 +71,29 @@ type AppSettings = {
   autoRefreshMs: number;
 };
 
+type FrontmatterData = {
+  title?: string;
+  date?: string;
+  tags: string[];
+  status?: string;
+  template?: string;
+};
+
+type NoteDialogMode = "create" | "journal" | "rename";
+
+type NoteDialogState =
+  | {
+      mode: NoteDialogMode;
+      title: string;
+      description: string;
+      confirmLabel: string;
+      initialPath: string;
+    }
+  | null;
+
 const MarkdownPreview = lazy(() => import("./MarkdownPreview"));
-const RECENT_ROOTS_KEY = "md-project-viewer:recent-roots";
 const BOOKMARKS_KEY = "md-project-viewer:bookmarks";
 const SETTINGS_KEY = "md-project-viewer:settings";
-const MAX_RECENT_ROOTS = 6;
 const AUTO_REFRESH_MS = 4000;
 const RAIL_WIDTH = 80;
 const DEFAULT_SETTINGS: AppSettings = {
@@ -79,6 +110,110 @@ const EMPTY_ROOT: TreeNode = {
   kind: "directory",
   children: []
 };
+
+function formatTodayPath(date = new Date()) {
+  const year = String(date.getFullYear());
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `journal/${year}/${month}/${year}-${month}-${day}.md`;
+}
+
+function prettifyNoteTitle(path: string) {
+  return (
+    path
+      .split("/")
+      .filter(Boolean)
+      .pop()
+      ?.replace(/\.(md|markdown)$/i, "")
+      .replace(/[-_]+/g, " ") || "Untitled"
+  );
+}
+
+function formatIsoDate(date = new Date()) {
+  const year = String(date.getFullYear());
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function buildNoteTemplate(path: string) {
+  const title = prettifyNoteTitle(path);
+  const today = formatIsoDate();
+
+  return `---
+title: ${title}
+created: ${today}
+tags: []
+template: note
+---
+
+# ${title}
+
+`;
+}
+
+function buildJournalTemplate(path: string) {
+  const title = prettifyNoteTitle(path);
+  const today = formatIsoDate();
+
+  return `---
+title: ${title}
+date: ${today}
+tags: [journal]
+status: active
+template: journal
+---
+
+# ${title}
+
+## Notes
+
+## Wins
+
+## Next
+
+`;
+}
+
+function parseFrontmatter(content: string): FrontmatterData {
+  if (!content.startsWith("---\n")) {
+    return { tags: [] };
+  }
+
+  const endIndex = content.indexOf("\n---\n", 4);
+  if (endIndex === -1) {
+    return { tags: [] };
+  }
+
+  const raw = content.slice(4, endIndex);
+  const data: FrontmatterData = { tags: [] };
+
+  for (const line of raw.split("\n")) {
+    const separatorIndex = line.indexOf(":");
+    if (separatorIndex === -1) {
+      continue;
+    }
+
+    const key = line.slice(0, separatorIndex).trim();
+    const value = line.slice(separatorIndex + 1).trim();
+
+    if (key === "tags") {
+      const normalized = value.replace(/^\[/, "").replace(/\]$/, "");
+      data.tags = normalized
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean);
+      continue;
+    }
+
+    if (key === "title") data.title = value;
+    if (key === "date") data.date = value;
+    if (key === "status") data.status = value;
+    if (key === "template") data.template = value;
+  }
+
+  return data;
+}
 
 function buildTree(files: MdFile[]): TreeNode {
   const root: TreeNode = { ...EMPTY_ROOT, children: [] };
@@ -271,13 +406,16 @@ export default function App() {
   const [files, setFiles] = useState<MdFile[]>([]);
   const [selectedFile, setSelectedFile] = useState<MdFile | null>(null);
   const [content, setContent] = useState("");
+  const [draftContent, setDraftContent] = useState("");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
   const [isLoadingTree, setIsLoadingTree] = useState(false);
   const [isLoadingFile, setIsLoadingFile] = useState(false);
+  const [isSavingFile, setIsSavingFile] = useState(false);
   const [isAutoRefreshing, setIsAutoRefreshing] = useState(false);
   const [error, setError] = useState("");
-  const [recentRoots, setRecentRoots] = useState<string[]>([]);
   const [bookmarks, setBookmarks] = useState<string[]>([]);
   const [focusedPath, setFocusedPath] = useState<string | null>(null);
   const [sidebarWidth, setSidebarWidth] = useState(350);
@@ -286,42 +424,38 @@ export default function App() {
   const [viewMode, setViewMode] = useState<"preview" | "source">("preview");
   const [notice, setNotice] = useState("");
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [noteDialog, setNoteDialog] = useState<NoteDialogState>(null);
+  const [notePathInput, setNotePathInput] = useState("");
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
   const resizeState = useRef<{ startX: number; startWidth: number } | null>(null);
   const previewScrollRef = useRef<HTMLDivElement | null>(null);
+  const hasAutoOpenedActiveSpace = useRef(false);
+  const { hydrated, spaces, activeSpace, upsertSpace, setActiveSpaceId, clearWorkspace } = useWorkspace();
 
   const tree = useMemo(() => buildTree(files), [files]);
   const visibleRows = useMemo(
     () => flattenVisibleTree(tree, expanded, searchQuery.trim().toLowerCase()),
     [expanded, searchQuery, tree]
   );
-  const headings = useMemo(() => extractHeadings(content), [content]);
+  const headings = useMemo(() => extractHeadings(draftContent), [draftContent]);
+  const frontmatter = useMemo(() => parseFrontmatter(draftContent), [draftContent]);
   const bookmarkedFiles = useMemo(
     () => files.filter((file) => bookmarks.includes(file.path)),
     [bookmarks, files]
   );
   const projectName = useMemo(() => {
+    if (activeSpace?.name) {
+      return activeSpace.name;
+    }
+
     if (!rootPath) {
       return "Project Root";
     }
 
     const pieces = rootPath.split(/[\\/]/).filter(Boolean);
     return pieces[pieces.length - 1] ?? rootPath;
-  }, [rootPath]);
-
-  useEffect(() => {
-    const stored = window.localStorage.getItem(RECENT_ROOTS_KEY);
-    if (!stored) {
-      return;
-    }
-
-    try {
-      const parsed = JSON.parse(stored) as string[];
-      setRecentRoots(Array.isArray(parsed) ? parsed : []);
-    } catch {
-      window.localStorage.removeItem(RECENT_ROOTS_KEY);
-    }
-  }, []);
+  }, [activeSpace?.name, rootPath]);
+  const isDirty = selectedFile !== null && draftContent !== content;
 
   useEffect(() => {
     const stored = window.localStorage.getItem(BOOKMARKS_KEY);
@@ -355,12 +489,17 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (recentRoots.length === 0) {
+    if (!hydrated || hasAutoOpenedActiveSpace.current || !activeSpace?.localPath) {
       return;
     }
 
-    window.localStorage.setItem(RECENT_ROOTS_KEY, JSON.stringify(recentRoots));
-  }, [recentRoots]);
+    hasAutoOpenedActiveSpace.current = true;
+    void scanRoot(activeSpace.localPath, {
+      preserveSelection: true,
+      resetSearch: false,
+      silent: true
+    });
+  }, [activeSpace, hydrated]);
 
   useEffect(() => {
     window.localStorage.setItem(BOOKMARKS_KEY, JSON.stringify(bookmarks));
@@ -381,12 +520,47 @@ export default function App() {
   }, [notice]);
 
   useEffect(() => {
+    if (!noteDialog) {
+      return;
+    }
+
+    setNotePathInput(noteDialog.initialPath);
+  }, [noteDialog]);
+
+  useEffect(() => {
+    if (!rootPath) {
+      setSearchResults([]);
+      setIsSearching(false);
+      return;
+    }
+
+    const query = searchQuery.trim();
+    if (!query) {
+      setSearchResults([]);
+      setIsSearching(false);
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setIsSearching(true);
+      void invoke<SearchResult[]>("search_markdown", { path: rootPath, query })
+        .then((results) => setSearchResults(results))
+        .catch((searchError) =>
+          setError(searchError instanceof Error ? searchError.message : String(searchError))
+        )
+        .finally(() => setIsSearching(false));
+    }, 160);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [rootPath, searchQuery]);
+
+  useEffect(() => {
     if (!rootPath) {
       return;
     }
 
     const intervalId = window.setInterval(() => {
-      if (document.hidden) {
+      if (document.hidden || isDirty) {
         return;
       }
 
@@ -398,7 +572,22 @@ export default function App() {
     }, settings.autoRefreshMs);
 
     return () => window.clearInterval(intervalId);
-  }, [expanded, rootPath, selectedFile?.relative_path, settings.autoRefreshMs]);
+  }, [isDirty, rootPath, selectedFile?.relative_path, settings.autoRefreshMs]);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      const isSaveShortcut = (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s";
+      if (!isSaveShortcut) {
+        return;
+      }
+
+      event.preventDefault();
+      void handleSaveCurrentFile();
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [draftContent, content, selectedFile]);
 
   async function selectRootDirectory() {
     setError("");
@@ -421,11 +610,27 @@ export default function App() {
       preserveSelection?: boolean;
       resetSearch?: boolean;
       silent?: boolean;
+      allowDirty?: boolean;
     }
   ) {
     const preserveSelection = options?.preserveSelection ?? false;
     const resetSearch = options?.resetSearch ?? true;
     const silent = options?.silent ?? false;
+    const allowDirty = options?.allowDirty ?? false;
+    if (isDirty && !allowDirty) {
+      if (silent) {
+        return;
+      }
+
+      const shouldDiscard = window.confirm(
+        "You have unsaved changes in the current note. Discard them and switch spaces?"
+      );
+
+      if (!shouldDiscard) {
+        return;
+      }
+    }
+
     const previousSelectedPath = selectedFile?.relative_path ?? null;
     const previousExpanded = expanded;
 
@@ -458,21 +663,20 @@ export default function App() {
 
         return expandParents(nextSelectedFile?.relative_path);
       });
-      setRecentRoots((current) => {
-        const next = [path, ...current.filter((item) => item !== path)];
-        return next.slice(0, MAX_RECENT_ROOTS);
-      });
+      upsertSpace(path, new Date().toISOString());
 
       if (nextSelectedFile) {
         await loadFile(nextSelectedFile, { silent });
       } else {
         setContent("");
+        setDraftContent("");
       }
     } catch (scanError) {
       setError(scanError instanceof Error ? scanError.message : String(scanError));
       setFiles([]);
       setSelectedFile(null);
       setContent("");
+      setDraftContent("");
     } finally {
       if (silent) {
         setIsAutoRefreshing(false);
@@ -495,6 +699,7 @@ export default function App() {
       const fileContent = await invoke<string>("read_md_file", { path: file.path });
       setSelectedFile(file);
       setContent(fileContent);
+      setDraftContent(fileContent);
     } catch (readError) {
       setError(readError instanceof Error ? readError.message : String(readError));
     } finally {
@@ -520,6 +725,16 @@ export default function App() {
   }
 
   function handleSelect(relativePath: string) {
+    if (isDirty) {
+      const shouldDiscard = window.confirm(
+        "You have unsaved changes in the current note. Discard them and open another file?"
+      );
+
+      if (!shouldDiscard) {
+        return;
+      }
+    }
+
     const nextFile = files.find((file) => file.relative_path === relativePath);
     if (!nextFile) {
       return;
@@ -546,9 +761,26 @@ export default function App() {
     });
   }
 
-  function clearRecentRoots() {
-    setRecentRoots([]);
-    window.localStorage.removeItem(RECENT_ROOTS_KEY);
+  function clearAllSpaces() {
+    if (isDirty) {
+      const shouldDiscard = window.confirm(
+        "You have unsaved changes in the current note. Discard them and clear all spaces?"
+      );
+
+      if (!shouldDiscard) {
+        return;
+      }
+    }
+
+    clearWorkspace();
+    setRootPath("");
+    setFiles([]);
+    setSelectedFile(null);
+    setContent("");
+    setDraftContent("");
+    setExpanded(new Set());
+    setFocusedPath(null);
+    setSearchQuery("");
   }
 
   function showNotice(message: string) {
@@ -578,12 +810,17 @@ export default function App() {
   }
 
   function handleRefreshCurrent() {
-    if (!rootPath) {
+    if (isDirty) {
+      showNotice("Save or discard your changes before refreshing");
+      return;
+    }
+
+    if (!activeSpace?.localPath) {
       void selectRootDirectory();
       return;
     }
 
-    void scanRoot(rootPath, { preserveSelection: true, resetSearch: false });
+    void scanRoot(activeSpace.localPath, { preserveSelection: true, resetSearch: false });
   }
 
   async function handleShare() {
@@ -615,7 +852,7 @@ export default function App() {
       return;
     }
 
-    const blob = new Blob([content], { type: "text/markdown;charset=utf-8" });
+    const blob = new Blob([draftContent], { type: "text/markdown;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
     anchor.href = url;
@@ -724,6 +961,201 @@ export default function App() {
 
     window.addEventListener("mousemove", onMouseMove);
     window.addEventListener("mouseup", onMouseUp);
+  }
+
+  function handleOpenSpace(localPath: string) {
+    const space = spaces.find((candidate) => candidate.localPath === localPath);
+    if (space) {
+      setActiveSpaceId(space.id);
+    }
+
+    void scanRoot(localPath, { preserveSelection: true, resetSearch: false });
+  }
+
+  async function handleSaveCurrentFile() {
+    if (!selectedFile) {
+      showNotice("Open a file first");
+      return;
+    }
+
+    if (!isDirty) {
+      showNotice("No changes to save");
+      return;
+    }
+
+    setIsSavingFile(true);
+    setError("");
+
+    try {
+      await invoke("write_md_file", {
+        path: selectedFile.path,
+        content: draftContent
+      });
+      setContent(draftContent);
+      showNotice("Markdown saved");
+    } catch (writeError) {
+      setError(writeError instanceof Error ? writeError.message : String(writeError));
+    } finally {
+      setIsSavingFile(false);
+    }
+  }
+
+  async function handleCreateNote() {
+    if (!rootPath) {
+      showNotice("Select a folder first");
+      return;
+    }
+
+    if (isDirty) {
+      const shouldDiscard = window.confirm(
+        "You have unsaved changes in the current note. Discard them and create a new note?"
+      );
+
+      if (!shouldDiscard) {
+        return;
+      }
+    }
+
+    const suggestedPath =
+      selectedFile?.relative_path.replace(/\.(md|markdown)$/i, "-copy.md") ?? "notes/untitled.md";
+
+    setNoteDialog({
+      mode: "create",
+      title: "Create Note",
+      description: "Choose where the new markdown note should live inside this space.",
+      confirmLabel: "Create Note",
+      initialPath: suggestedPath
+    });
+  }
+
+  async function handleRenameCurrentFile() {
+    if (!selectedFile) {
+      showNotice("Open a file first");
+      return;
+    }
+
+    if (isDirty) {
+      showNotice("Save or discard your changes before renaming");
+      return;
+    }
+
+    setNoteDialog({
+      mode: "rename",
+      title: "Rename Note",
+      description: "Move the current note to a new markdown path inside this space.",
+      confirmLabel: "Rename Note",
+      initialPath: selectedFile.relative_path
+    });
+  }
+
+  async function handleCreateJournalEntry() {
+    if (!rootPath) {
+      showNotice("Select a folder first");
+      return;
+    }
+
+    if (isDirty) {
+      const shouldDiscard = window.confirm(
+        "You have unsaved changes in the current note. Discard them and create a journal entry?"
+      );
+
+      if (!shouldDiscard) {
+        return;
+      }
+    }
+
+    setNoteDialog({
+      mode: "journal",
+      title: "Create Journal Entry",
+      description: "Create a dated note inside the journal folder structure.",
+      confirmLabel: "Create Entry",
+      initialPath: formatTodayPath()
+    });
+  }
+
+  async function handleDeleteCurrentFile() {
+    if (!selectedFile) {
+      showNotice("Open a file first");
+      return;
+    }
+
+    if (isDirty) {
+      showNotice("Save or discard your changes before deleting");
+      return;
+    }
+
+    const shouldDelete = window.confirm(`Delete "${selectedFile.relative_path}"?`);
+    if (!shouldDelete) {
+      return;
+    }
+
+    setError("");
+
+    try {
+      await invoke("delete_md_file", { path: selectedFile.path });
+      await scanRoot(rootPath, { preserveSelection: false, resetSearch: false });
+      showNotice("Note deleted");
+    } catch (deleteError) {
+      setError(deleteError instanceof Error ? deleteError.message : String(deleteError));
+    }
+  }
+
+  async function handleSubmitNoteDialog() {
+    if (!noteDialog) {
+      return;
+    }
+
+    const requestedPath = notePathInput.trim();
+    if (!requestedPath) {
+      setError("A file path is required");
+      return;
+    }
+
+    setError("");
+
+    try {
+      if (noteDialog.mode === "rename") {
+        if (!selectedFile) {
+          showNotice("Open a file first");
+          return;
+        }
+
+        const renamedFile = await invoke<MdFile>("rename_md_file", {
+          path: selectedFile.path,
+          nextRelativePath: requestedPath
+        });
+
+        await scanRoot(rootPath, { preserveSelection: false, resetSearch: false });
+        setFocusedPath(renamedFile.relative_path);
+        await loadFile(renamedFile);
+        setNoteDialog(null);
+        showNotice("Note renamed");
+        return;
+      }
+
+      const initialContent =
+        noteDialog.mode === "journal"
+          ? buildJournalTemplate(requestedPath)
+          : buildNoteTemplate(requestedPath);
+
+      const createdFile = await invoke<MdFile>("create_md_file", {
+        relativePath: requestedPath,
+        content: initialContent
+      });
+
+      await scanRoot(rootPath, {
+        preserveSelection: false,
+        resetSearch: false,
+        allowDirty: true
+      });
+      setFocusedPath(createdFile.relative_path);
+      await loadFile(createdFile);
+      setViewMode("source");
+      setNoteDialog(null);
+      showNotice(noteDialog.mode === "journal" ? "Journal entry created" : "Note created");
+    } catch (submitError) {
+      setError(submitError instanceof Error ? submitError.message : String(submitError));
+    }
   }
 
   return (
@@ -840,15 +1272,35 @@ export default function App() {
         <section className="explorer-panel">
           <div className="explorer-panel-header">
             <span>Workspace Files</span>
-            <button
-              type="button"
-              className="icon-button"
-              onClick={() => void scanRoot(rootPath, { preserveSelection: true, resetSearch: false })}
-              disabled={!rootPath || isLoadingTree}
-              aria-label="Refresh scan"
-            >
-              <RefreshCw className="icon" />
-            </button>
+            <div className="explorer-panel-actions">
+              <button
+                type="button"
+                className="icon-button"
+                onClick={() => void handleCreateJournalEntry()}
+                disabled={!rootPath}
+                aria-label="Create journal entry"
+              >
+                <CalendarDays className="icon" />
+              </button>
+              <button
+                type="button"
+                className="icon-button"
+                onClick={() => void handleCreateNote()}
+                disabled={!rootPath}
+                aria-label="Create note"
+              >
+                <FilePlus2 className="icon" />
+              </button>
+              <button
+                type="button"
+                className="icon-button"
+                onClick={() => void scanRoot(rootPath, { preserveSelection: true, resetSearch: false })}
+                disabled={!rootPath || isLoadingTree}
+                aria-label="Refresh scan"
+              >
+                <RefreshCw className="icon" />
+              </button>
+            </div>
           </div>
 
           <div className="explorer-search">
@@ -867,7 +1319,38 @@ export default function App() {
             aria-label="Markdown files"
             onKeyDown={handleTreeKeyDown}
           >
-            {activePanel === "explorer" && files.length > 0 ? (
+            {activePanel === "explorer" && searchQuery.trim() ? (
+              isSearching ? (
+                <div className="explorer-empty">Searching notes…</div>
+              ) : searchResults.length > 0 ? (
+                <div className="search-results">
+                  {searchResults.map((result) => (
+                    <button
+                      key={result.path}
+                      type="button"
+                      className={clsx(
+                        "search-result-item",
+                        selectedFile?.path === result.path && "selected"
+                      )}
+                      onClick={() => handleSelect(result.relative_path)}
+                    >
+                      <div className="search-result-topline">
+                        <FileText className="icon explorer-row-icon file" />
+                        <span className="search-result-name">{result.relative_path}</span>
+                      </div>
+                      <div className="search-result-meta">
+                        {result.matched_on_path ? "Path match" : "Content match"}
+                      </div>
+                      {result.snippet ? (
+                        <div className="search-result-snippet">{result.snippet}</div>
+                      ) : null}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div className="explorer-empty">No notes matched this search.</div>
+              )
+            ) : activePanel === "explorer" && files.length > 0 ? (
               <TreeBranch
                 rows={visibleRows}
                 expanded={expanded}
@@ -919,6 +1402,22 @@ export default function App() {
                   <span>Current file</span>
                   <strong>{selectedFile?.relative_path || "None"}</strong>
                 </div>
+                <div className="metadata-item">
+                  <span>Title</span>
+                  <strong>{frontmatter.title || prettifyNoteTitle(selectedFile?.relative_path || "") || "None"}</strong>
+                </div>
+                <div className="metadata-item">
+                  <span>Template</span>
+                  <strong>{frontmatter.template || "None"}</strong>
+                </div>
+                <div className="metadata-item">
+                  <span>Date</span>
+                  <strong>{frontmatter.date || "None"}</strong>
+                </div>
+                <div className="metadata-item">
+                  <span>Tags</span>
+                  <strong>{frontmatter.tags.length > 0 ? frontmatter.tags.join(", ") : "None"}</strong>
+                </div>
               </div>
             ) : (
               <div className="explorer-empty">
@@ -935,30 +1434,28 @@ export default function App() {
 
         <div className="recent-roots-panel">
           <div className="recent-roots-header">
-            <span>Recent Projects</span>
-            {recentRoots.length > 0 ? (
-              <button type="button" className="text-action" onClick={clearRecentRoots}>
+            <span>Spaces</span>
+            {spaces.length > 0 ? (
+              <button type="button" className="text-action" onClick={clearAllSpaces}>
                 Clear
               </button>
             ) : null}
           </div>
           <div className="recent-roots-list">
-            {recentRoots.length > 0 ? (
-              recentRoots.map((recentRoot) => (
+            {spaces.length > 0 ? (
+              spaces.map((space) => (
                 <button
-                  key={recentRoot}
+                  key={space.id}
                   type="button"
-                  className={clsx("recent-root-item", recentRoot === rootPath && "active")}
-                  onClick={() => void scanRoot(recentRoot)}
+                  className={clsx("recent-root-item", activeSpace?.id === space.id && "active")}
+                  onClick={() => handleOpenSpace(space.localPath)}
                 >
-                  <span className="recent-root-name">
-                    {recentRoot.split(/[\\/]/).filter(Boolean).slice(-1)[0] ?? recentRoot}
-                  </span>
-                  <span className="recent-root-path">{recentRoot}</span>
+                  <span className="recent-root-name">{space.name}</span>
+                  <span className="recent-root-path">{space.localPath}</span>
                 </button>
               ))
             ) : (
-              <div className="recent-root-empty">No recent projects yet.</div>
+              <div className="recent-root-empty">No spaces added yet.</div>
             )}
           </div>
         </div>
@@ -1047,6 +1544,42 @@ export default function App() {
               </div>
 
               <div className="preview-toolbar-right">
+                {selectedFile ? (
+                  <button
+                    type="button"
+                    className={clsx("secondary-action toolbar-save", isDirty && "dirty")}
+                    aria-label="Save"
+                    onClick={() => void handleSaveCurrentFile()}
+                    disabled={isSavingFile}
+                  >
+                    {isSavingFile ? "Saving..." : isDirty ? "Save" : "Saved"}
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  className="icon-button"
+                  aria-label="Create note"
+                  onClick={() => void handleCreateNote()}
+                >
+                  <FilePlus2 className="icon" />
+                </button>
+                <button
+                  type="button"
+                  className="icon-button"
+                  aria-label="Create journal entry"
+                  onClick={() => void handleCreateJournalEntry()}
+                >
+                  <CalendarDays className="icon" />
+                </button>
+                <button
+                  type="button"
+                  className="icon-button"
+                  aria-label="Rename note"
+                  onClick={() => void handleRenameCurrentFile()}
+                  disabled={!selectedFile || isDirty}
+                >
+                  <PencilLine className="icon" />
+                </button>
                 <button
                   type="button"
                   className="icon-button"
@@ -1060,6 +1593,15 @@ export default function App() {
                 </button>
                 <button type="button" className="icon-button" aria-label="Download" onClick={handleDownload}>
                   <Download className="icon" />
+                </button>
+                <button
+                  type="button"
+                  className="icon-button"
+                  aria-label="Delete note"
+                  onClick={() => void handleDeleteCurrentFile()}
+                  disabled={!selectedFile || isDirty}
+                >
+                  <Trash2 className="icon" />
                 </button>
                 <button
                   type="button"
@@ -1100,12 +1642,15 @@ export default function App() {
                       </div>
                       {viewMode === "preview" ? (
                         <Suspense fallback={<div className="design-empty-state">Rendering preview…</div>}>
-                          <MarkdownPreview content={content} />
+                          <MarkdownPreview content={draftContent} />
                         </Suspense>
                       ) : (
-                        <pre className={clsx("source-view", settings.sourceWrap && "wrap")}>
-                          <code>{content}</code>
-                        </pre>
+                        <textarea
+                          className={clsx("source-editor", settings.sourceWrap && "wrap")}
+                          value={draftContent}
+                          onChange={(event) => setDraftContent(event.target.value)}
+                          spellCheck={false}
+                        />
                       )}
                     </div>
                   )
@@ -1120,9 +1665,13 @@ export default function App() {
                       viewing its rendered content.
                     </p>
                     <div className="empty-hero-grid">
-                      <button type="button" className="empty-card" onClick={selectRootDirectory}>
+                      <button type="button" className="empty-card" onClick={() => void handleCreateNote()}>
                         <strong>New Document</strong>
-                        <span>Create or scan a project root to begin.</span>
+                        <span>Create a new markdown note inside the current space.</span>
+                      </button>
+                      <button type="button" className="empty-card" onClick={() => void handleCreateJournalEntry()}>
+                        <strong>Daily Journal</strong>
+                        <span>Create a dated note inside the journal folder structure.</span>
                       </button>
                       <button
                         type="button"
@@ -1263,6 +1812,48 @@ export default function App() {
               </button>
               <button type="button" className="primary-action" onClick={() => setIsSettingsOpen(false)}>
                 Done
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
+      {noteDialog ? (
+        <div className="settings-backdrop" onClick={() => setNoteDialog(null)}>
+          <section className="settings-modal note-dialog" onClick={(event) => event.stopPropagation()}>
+            <div className="settings-header">
+              <div>
+                <h3>{noteDialog.title}</h3>
+                <p>{noteDialog.description}</p>
+              </div>
+              <button
+                type="button"
+                className="icon-button"
+                aria-label="Close note dialog"
+                onClick={() => setNoteDialog(null)}
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="settings-grid">
+              <label className="settings-field">
+                <span>Markdown path</span>
+                <input
+                  type="text"
+                  value={notePathInput}
+                  onChange={(event) => setNotePathInput(event.target.value)}
+                  placeholder="notes/untitled.md"
+                  autoFocus
+                />
+              </label>
+            </div>
+
+            <div className="settings-footer">
+              <button type="button" className="secondary-action" onClick={() => setNoteDialog(null)}>
+                Cancel
+              </button>
+              <button type="button" className="primary-action" onClick={() => void handleSubmitNoteDialog()}>
+                {noteDialog.confirmLabel}
               </button>
             </div>
           </section>
