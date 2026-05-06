@@ -1,0 +1,152 @@
+# Markdown Project Viewer
+
+A lightweight desktop app for browsing Markdown documentation inside real project folders.
+
+Built with `Tauri 2`, `React`, and `TypeScript`, this app lets you select a local root directory, recursively discover Markdown files, and read them in a clean, developer-focused interface with GitHub-flavored rendering and syntax highlighting.
+
+## Why This Exists
+
+Most Markdown viewers are optimized for single files, editors, or browser tabs. This project is optimized for a different workflow:
+
+- open a project folder
+- scan everything recursively
+- browse docs like a file explorer
+- preview Markdown quickly without leaving a lightweight desktop app
+
+It is designed for documentation-heavy repos, notes folders, internal playbooks, specs, changelogs, and any project where Markdown is part of the working surface.
+
+## What It Does
+
+- Select a local root folder with a native dialog
+- Recursively scan subdirectories for `.md` and `.markdown` files
+- Browse files in a structured explorer
+- Render Markdown with GitHub-flavored features
+- Highlight fenced code blocks
+- Switch between preview mode and source mode
+- Bookmark files
+- Persist recent projects locally
+- Auto-refresh the current project on an interval
+- Show a table of contents for heading-based navigation
+- Export raw Markdown files
+- Toggle app settings like light/dark theme and source wrapping
+
+## Current Stack
+
+- `Tauri 2`
+- `React 19`
+- `TypeScript`
+- `Vite`
+- `react-markdown`
+- `remark-gfm`
+- `highlight.js`
+- `lucide-react`
+
+## Screens
+
+The repo includes design exploration assets under [`design/`](./design), and the current app implements that general visual direction in code.
+
+## Getting Started
+
+### Prerequisites
+
+You will need:
+
+- `Node.js` 20+
+- `npm`
+- `Rust`
+- Tauri system prerequisites for your OS
+
+If you have not used Tauri before, make sure your local machine can build Tauri desktop apps first.
+
+### Install
+
+```bash
+npm install
+```
+
+### Run In Development
+
+```bash
+npm run tauri dev
+```
+
+This launches the desktop app with the Vite frontend and live reload.
+
+### Build The App
+
+```bash
+npm run tauri build -- --debug
+```
+
+For the current setup, the generated macOS app bundle is written under:
+
+```bash
+src-tauri/target/debug/bundle/macos/
+```
+
+## Project Structure
+
+```text
+.
+├── src/                 # React UI
+├── src-tauri/           # Tauri + Rust backend
+├── design/              # Design exploration assets and references
+├── package.json
+└── vite.config.ts
+```
+
+## Security Model
+
+This app is local-first.
+
+- Directory selection happens through the native file picker
+- Markdown discovery is performed in Rust
+- File reads are constrained to the currently selected root
+- Paths are canonicalized before access
+- The app refuses to read files outside the chosen root
+
+## Implemented Features
+
+- Native folder selection
+- Recursive Markdown scan
+- Safe file read command
+- Keyboard-friendly explorer navigation
+- Independent sidebar/content scrolling
+- Preview/source toggle
+- Bookmarks
+- Recent projects
+- Light and dark themes
+- Settings modal
+- Table of contents panel
+- Resizable explorer column
+
+## Roadmap Ideas
+
+- Per-project saved preferences
+- Native filesystem watching instead of interval refresh
+- Full-text search across Markdown content
+- Better export formats
+- Packaging polish for all desktop targets
+- Stronger accessibility pass
+- Optional multi-root workspace support
+
+## Development Notes
+
+This repository intentionally keeps the frontend lightweight and avoids pulling in a large component framework. Most of the UI is custom and theme-driven.
+
+If you want to customize the app:
+
+- explorer and shell layout: [`src/App.tsx`](./src/App.tsx)
+- Markdown rendering: [`src/MarkdownPreview.tsx`](./src/MarkdownPreview.tsx)
+- visual system and theming: [`src/styles.css`](./src/styles.css)
+- backend commands: [`src-tauri/src/lib.rs`](./src-tauri/src/lib.rs)
+
+## Status
+
+This project is functional and already useful, but still early-stage. Expect ongoing UI refinement and feature polish.
+
+## License
+
+No license file is included yet.
+
+If you plan to publish this publicly, add a license before distribution.
