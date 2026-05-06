@@ -34,6 +34,31 @@ import {
   UserCircle2,
   Warehouse
 } from "lucide-react";
+import { Button } from "./components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogIconClose,
+  DialogTitle
+} from "./components/ui/dialog";
+import { ScrollArea } from "./components/ui/scroll-area";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from "./components/ui/select";
+import { Textarea } from "./components/ui/textarea";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger
+} from "./components/ui/tooltip";
 import { useWorkspace } from "./features/spaces/useWorkspace";
 import { DEFAULT_SPACE_EXCLUDES, getSpaceLabel, normalizeExcludePaths } from "./features/spaces/storage";
 
@@ -114,6 +139,19 @@ type AppSettings = {
   sourceWrap: boolean;
   autosave: boolean;
   autoRefreshMs: number;
+  toolbar: {
+    save: boolean;
+    createNote: boolean;
+    createJournal: boolean;
+    rename: boolean;
+    editMode: boolean;
+    print: boolean;
+    download: boolean;
+    metadata: boolean;
+    delete: boolean;
+    bookmark: boolean;
+    settings: boolean;
+  };
 };
 
 type FrontmatterData = {
@@ -164,13 +202,46 @@ const SETTINGS_KEY = "md-project-viewer:settings";
 const AUTO_REFRESH_MS = 4000;
 const MAX_RECENT_NOTES = 8;
 const RAIL_WIDTH = 80;
+const SIDEBAR_WIDTH = 350;
 const DEFAULT_SETTINGS: AppSettings = {
   theme: "light",
   showToc: true,
   sourceWrap: true,
   autosave: false,
-  autoRefreshMs: AUTO_REFRESH_MS
+  autoRefreshMs: AUTO_REFRESH_MS,
+  toolbar: {
+    save: true,
+    createNote: true,
+    createJournal: true,
+    rename: true,
+    editMode: true,
+    print: true,
+    download: true,
+    metadata: true,
+    delete: true,
+    bookmark: true,
+    settings: true
+  }
 };
+
+const TOOLBAR_ITEM_OPTIONS: Array<{
+  key: keyof AppSettings["toolbar"];
+  label: string;
+  description: string;
+  icon: typeof FileText;
+}> = [
+  { key: "save", label: "Save", description: "Save or show current save state.", icon: FileText },
+  { key: "createNote", label: "New Note", description: "Create a new markdown note.", icon: FilePlus2 },
+  { key: "createJournal", label: "Journal", description: "Create a journal entry.", icon: CalendarDays },
+  { key: "rename", label: "Rename", description: "Rename the current note.", icon: PencilLine },
+  { key: "editMode", label: "Preview/Source", description: "Toggle between preview and source quickly.", icon: Pencil },
+  { key: "print", label: "Print", description: "Print the current document.", icon: Printer },
+  { key: "download", label: "Download", description: "Export the current markdown file.", icon: Download },
+  { key: "metadata", label: "Metadata", description: "Toggle the document metadata panel.", icon: Info },
+  { key: "delete", label: "Delete", description: "Delete the current note.", icon: Trash2 },
+  { key: "bookmark", label: "Bookmark", description: "Bookmark the current note.", icon: Star },
+  { key: "settings", label: "Toolbar Settings", description: "Open settings from the toolbar.", icon: Settings }
+];
 
 const EMPTY_ROOT: TreeNode = {
   id: "root",
@@ -671,8 +742,8 @@ export default function App() {
   const [recentNotes, setRecentNotes] = useState<RecentNote[]>([]);
   const [spaceSummaries, setSpaceSummaries] = useState<Record<string, SpaceSummary>>({});
   const [focusedPath, setFocusedPath] = useState<string | null>(null);
-  const [sidebarWidth, setSidebarWidth] = useState(350);
-  const [activePanel, setActivePanel] = useState<"explorer" | "bookmarks" | "metadata">("explorer");
+  const [activePanel, setActivePanel] = useState<"explorer" | "bookmarks">("explorer");
+  const [documentPanel, setDocumentPanel] = useState<"toc" | "metadata">("toc");
   const [viewMode, setViewMode] = useState<"preview" | "source">("preview");
   const [notice, setNotice] = useState("");
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -686,7 +757,6 @@ export default function App() {
   const [gitInfos, setGitInfos] = useState<Record<string, GitRepoInfo>>({});
   const [gitStatuses, setGitStatuses] = useState<Record<string, string>>({});
   const [fileHistory, setFileHistory] = useState<GitFileHistoryEntry[]>([]);
-  const resizeState = useRef<{ startX: number; startWidth: number } | null>(null);
   const previewScrollRef = useRef<HTMLDivElement | null>(null);
   const hasAutoOpenedActiveSpace = useRef(false);
   const {
@@ -737,6 +807,7 @@ export default function App() {
   );
   const activeGitInfo = activeSpaceId ? gitInfos[activeSpaceId] : undefined;
   const activeExcludePaths = activeSpace?.excludePaths ?? DEFAULT_SPACE_EXCLUDES;
+  const showSecondarySidebar = currentView === "space";
   const focusedRow = useMemo(
     () => visibleRows.find((row) => row.path === focusedPath) ?? null,
     [focusedPath, visibleRows]
@@ -1544,28 +1615,6 @@ export default function App() {
     }
   }
 
-  function handleResizeStart(event: React.MouseEvent<HTMLButtonElement>) {
-    resizeState.current = { startX: event.clientX, startWidth: sidebarWidth };
-
-    const onMouseMove = (moveEvent: MouseEvent) => {
-      if (!resizeState.current) {
-        return;
-      }
-
-      const width = resizeState.current.startWidth + (moveEvent.clientX - resizeState.current.startX);
-      setSidebarWidth(Math.max(280, Math.min(440, width)));
-    };
-
-    const onMouseUp = () => {
-      resizeState.current = null;
-      window.removeEventListener("mousemove", onMouseMove);
-      window.removeEventListener("mouseup", onMouseUp);
-    };
-
-    window.addEventListener("mousemove", onMouseMove);
-    window.addEventListener("mouseup", onMouseUp);
-  }
-
   function handleOpenSpace(localPath: string) {
     const space = spaces.find((candidate) => candidate.localPath === localPath);
     if (space) {
@@ -2071,11 +2120,18 @@ export default function App() {
     <div
       className="app-shell design-shell"
       style={{
-        gridTemplateColumns: `${RAIL_WIDTH}px ${sidebarWidth}px 8px minmax(0, 1fr)`
+        gridTemplateColumns: showSecondarySidebar
+          ? `${RAIL_WIDTH}px ${SIDEBAR_WIDTH}px minmax(0, 1fr)`
+          : `${RAIL_WIDTH}px minmax(0, 1fr)`
       }}
     >
       <aside className="design-rail">
-        <button type="button" className={clsx("rail-brand", currentView === "home" && "active")} onClick={handleOpenHome}>
+        <button
+          type="button"
+          className={clsx("rail-brand", currentView === "home" && "active")}
+          data-tooltip="Workspace Home"
+          onClick={handleOpenHome}
+        >
           <SquareTerminal className="icon" />
         </button>
         <nav className="rail-nav">
@@ -2083,6 +2139,7 @@ export default function App() {
             type="button"
             className={clsx("rail-item", currentView === "home" && "active")}
             aria-label="Home"
+            data-tooltip="Home"
             onClick={handleOpenHome}
           >
             <LayoutGrid className="icon" />
@@ -2091,6 +2148,7 @@ export default function App() {
             type="button"
             className={clsx("rail-item", currentView === "search" && "active")}
             aria-label="Search"
+            data-tooltip="Search"
             onClick={handleOpenWorkspaceSearch}
           >
             <Search className="icon" />
@@ -2099,6 +2157,7 @@ export default function App() {
             type="button"
             className={clsx("rail-item", currentView === "space" && activePanel === "explorer" && "active")}
             aria-label="Explorer"
+            data-tooltip="Explorer"
             onClick={() => {
               setCurrentView("space");
               setActivePanel("explorer");
@@ -2110,6 +2169,7 @@ export default function App() {
             type="button"
             className={clsx("rail-item", currentView === "space" && activePanel === "bookmarks" && "active")}
             aria-label="Bookmarks"
+            data-tooltip="Bookmarks"
             onClick={() => {
               setCurrentView("space");
               setActivePanel("bookmarks");
@@ -2117,23 +2177,13 @@ export default function App() {
           >
             <Bookmark className="icon" />
           </button>
-          <button
-            type="button"
-            className={clsx("rail-item", currentView === "space" && activePanel === "metadata" && "active")}
-            aria-label="Metadata"
-            onClick={() => {
-              setCurrentView("space");
-              setActivePanel("metadata");
-            }}
-          >
-            <Info className="icon" />
-          </button>
         </nav>
         <div className="rail-footer">
           <button
             type="button"
             className="rail-item"
             aria-label="Settings"
+            data-tooltip="Settings"
             onClick={() => setIsSettingsOpen(true)}
           >
             <Settings className="icon" />
@@ -2142,6 +2192,7 @@ export default function App() {
             type="button"
             className="rail-item"
             aria-label="Help"
+            data-tooltip="Help"
             onClick={() => showNotice("Use arrows in the explorer and Enter to open")}
           >
             <HelpCircle className="icon" />
@@ -2149,33 +2200,8 @@ export default function App() {
         </div>
       </aside>
 
+      {showSecondarySidebar ? (
       <aside className="design-sidebar">
-        <div className="design-sidebar-header">
-          <div className="project-header">
-            <div className="project-badge">
-              <Folder className="icon" />
-            </div>
-            <div>
-              <h1 className="project-title">{projectName}</h1>
-              <p className="project-status">
-                <span className="status-dot" />
-                {isLoadingTree
-                  ? "Scanning..."
-                  : isLoadingFile
-                    ? "Loading..."
-                    : isAutoRefreshing
-                      ? "Watching..."
-                      : "Ready"}
-              </p>
-            </div>
-          </div>
-
-          <button type="button" className="folder-button" onClick={selectRootDirectory}>
-            <Folder className="icon" />
-            <span>Select Folder</span>
-          </button>
-        </div>
-
         <section className="explorer-panel">
           <div className="explorer-panel-header">
             <span>Workspace Files</span>
@@ -2299,96 +2325,6 @@ export default function App() {
               ) : (
                 <div className="explorer-empty">Bookmark a file to keep it here.</div>
               )
-            ) : activePanel === "metadata" ? (
-              <div className="metadata-panel">
-                <div className="metadata-item">
-                  <span>Project</span>
-                  <strong>{projectName}</strong>
-                </div>
-                <div className="metadata-item">
-                  <span>Root</span>
-                  <strong>{rootPath || "Not selected"}</strong>
-                </div>
-                <div className="metadata-item">
-                  <span>Excluded paths</span>
-                  <strong>{activeExcludePaths.join(", ")}</strong>
-                </div>
-                <div className="metadata-item">
-                  <span>Markdown files</span>
-                  <strong>{files.length}</strong>
-                </div>
-                <div className="metadata-item">
-                  <span>Bookmarks</span>
-                  <strong>{bookmarkedFiles.length}</strong>
-                </div>
-                <div className="metadata-item">
-                  <span>Current file</span>
-                  <strong>{selectedFile?.relative_path || "None"}</strong>
-                </div>
-                <div className="metadata-item">
-                  <span>Git Status</span>
-                  <strong>
-                    {selectedFile ? gitStatuses[selectedFile.relative_path] || "clean" : "None"}
-                  </strong>
-                </div>
-                <div className="metadata-item">
-                  <span>Title</span>
-                  <strong>{frontmatter.title || prettifyNoteTitle(selectedFile?.relative_path || "") || "None"}</strong>
-                </div>
-                <div className="metadata-item">
-                  <span>Template</span>
-                  <strong>{frontmatter.template || "None"}</strong>
-                </div>
-                <div className="metadata-item">
-                  <span>Date</span>
-                  <strong>{frontmatter.date || "None"}</strong>
-                </div>
-                <div className="metadata-item">
-                  <span>Tags</span>
-                  <strong>{frontmatter.tags.length > 0 ? frontmatter.tags.join(", ") : "None"}</strong>
-                </div>
-                <div className="metadata-item">
-                  <span>Repository</span>
-                  <strong>{activeGitInfo?.is_repo ? "Git repository" : "Local folder"}</strong>
-                </div>
-                {activeGitInfo?.is_repo ? (
-                  <>
-                    <div className="metadata-item">
-                      <span>Branch</span>
-                      <strong>{activeGitInfo.branch || "Unknown"}</strong>
-                    </div>
-                    <div className="metadata-item">
-                      <span>Remote</span>
-                      <strong>{activeGitInfo.remote_url || "No origin remote"}</strong>
-                    </div>
-                    <div className="metadata-item metadata-history">
-                      <span>Recent file history</span>
-                      {selectedFile ? (
-                        fileHistory.length > 0 ? (
-                          <div className="history-list">
-                            {fileHistory.map((entry) => (
-                              <div key={entry.commit_hash} className="history-entry">
-                                <div className="history-entry-topline">
-                                  <strong>{entry.summary}</strong>
-                                  <code>{entry.short_hash}</code>
-                                </div>
-                                <div className="history-entry-meta">
-                                  <span>{entry.author_name}</span>
-                                  <span>{new Date(entry.committed_at).toLocaleString()}</span>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <strong>No local commit history for this file yet.</strong>
-                        )
-                      ) : (
-                        <strong>Open a Markdown file to inspect its local git history.</strong>
-                      )}
-                    </div>
-                  </>
-                ) : null}
-              </div>
             ) : (
               <div className="explorer-empty">
                 {isLoadingTree ? "Scanning project…" : "No Markdown files loaded yet."}
@@ -2402,117 +2338,8 @@ export default function App() {
           </div>
         </section>
 
-        <div className="recent-roots-panel">
-          <div className="recent-roots-header">
-            <span>Spaces</span>
-            {visibleSpaces.length > 0 ? (
-              <button type="button" className="text-action" onClick={clearAllSpaces}>
-                Clear
-              </button>
-            ) : null}
-          </div>
-          <div className="recent-roots-list">
-            {orderedVisibleSpaces.length > 0 ? (
-              orderedVisibleSpaces.map((space, index) => (
-                <div
-                  key={space.id}
-                  className={clsx("recent-root-item", activeSpace?.id === space.id && "active")}
-                >
-                  <button type="button" className="recent-root-main" onClick={() => handleOpenSpace(space.localPath)}>
-                    <span className="recent-root-name">{getSpaceLabel(space)}</span>
-                    <span className="recent-root-path">{space.localPath}</span>
-                  </button>
-                  <span className="recent-root-actions">
-                    <button
-                      type="button"
-                      className={clsx("mini-icon-button", space.isPinned && "active")}
-                      aria-label={space.isPinned ? "Unpin space" : "Pin space"}
-                      onClick={() => handleTogglePinnedSpace(space.id)}
-                    >
-                      <Pin className="icon" />
-                    </button>
-                    <button
-                      type="button"
-                      className="mini-icon-button"
-                      aria-label="Move space up"
-                      disabled={index === 0}
-                      onClick={() => handleMoveSpace(space.id, -1)}
-                    >
-                      <ChevronUp className="icon" />
-                    </button>
-                    <button
-                      type="button"
-                      className="mini-icon-button"
-                      aria-label="Move space down"
-                      disabled={index === orderedVisibleSpaces.length - 1}
-                      onClick={() => handleMoveSpace(space.id, 1)}
-                    >
-                      <ChevronDown className="icon" />
-                    </button>
-                    <button
-                      type="button"
-                      className="mini-icon-button"
-                      aria-label="Reveal space in Finder"
-                      onClick={() => void handleRevealSpace(space.id)}
-                    >
-                      <FolderOpen className="icon" />
-                    </button>
-                    <button
-                      type="button"
-                      className="mini-icon-button"
-                      aria-label="Open space in Terminal"
-                      onClick={() => void handleOpenSpaceTerminal(space.id)}
-                    >
-                      <TerminalSquare className="icon" />
-                    </button>
-                    <button
-                      type="button"
-                      className="mini-icon-button"
-                      aria-label="Copy space path"
-                      onClick={() => void handleCopySpacePath(space.id)}
-                    >
-                      <Copy className="icon" />
-                    </button>
-                    <button
-                      type="button"
-                      className="mini-icon-button"
-                      aria-label="Rename space"
-                      onClick={() => handleRenameSpace(space.id)}
-                    >
-                      <PencilLine className="icon" />
-                    </button>
-                    <button
-                      type="button"
-                      className="mini-icon-button"
-                      aria-label={space.isArchived ? "Restore space" : "Archive space"}
-                      onClick={() => handleToggleArchivedSpace(space.id)}
-                    >
-                      <Archive className="icon" />
-                    </button>
-                    <button
-                      type="button"
-                      className="mini-icon-button"
-                      aria-label="Remove space"
-                      onClick={() => handleRemoveSpace(space.id)}
-                    >
-                      <Trash2 className="icon" />
-                    </button>
-                  </span>
-                </div>
-              ))
-            ) : (
-              <div className="recent-root-empty">No spaces added yet.</div>
-            )}
-          </div>
-        </div>
       </aside>
-
-      <button
-        type="button"
-        className="sidebar-resizer design-resizer"
-        aria-label="Resize sidebar"
-        onMouseDown={handleResizeStart}
-      />
+      ) : null}
 
       <div className="workspace-shell">
         <header className="topbar">
@@ -2968,7 +2795,7 @@ export default function App() {
               </div>
 
               <div className="preview-toolbar-right">
-                {selectedFile ? (
+                {settings.toolbar.save && selectedFile ? (
                   <button
                     type="button"
                     className={clsx("secondary-action toolbar-save", isDirty && "dirty")}
@@ -2987,23 +2814,23 @@ export default function App() {
                         : "Saved"}
                   </button>
                 ) : null}
-                <button
+                {settings.toolbar.createNote ? <button
                   type="button"
                   className="icon-button"
                   aria-label="Create note"
                   onClick={() => void handleCreateNote()}
                 >
                   <FilePlus2 className="icon" />
-                </button>
-                <button
+                </button> : null}
+                {settings.toolbar.createJournal ? <button
                   type="button"
                   className="icon-button"
                   aria-label="Create journal entry"
                   onClick={() => void handleCreateJournalEntry()}
                 >
                   <CalendarDays className="icon" />
-                </button>
-                <button
+                </button> : null}
+                {settings.toolbar.rename ? <button
                   type="button"
                   className="icon-button"
                   aria-label="Rename note"
@@ -3011,22 +2838,32 @@ export default function App() {
                   disabled={!selectedFile || isDirty}
                 >
                   <PencilLine className="icon" />
-                </button>
-                <button
+                </button> : null}
+                {settings.toolbar.editMode ? <button
                   type="button"
                   className="icon-button"
                   aria-label="Edit"
                   onClick={() => setViewMode((current) => (current === "preview" ? "source" : "preview"))}
                 >
                   <Pencil className="icon" />
-                </button>
-                <button type="button" className="icon-button" aria-label="Print" onClick={handlePrint}>
+                </button> : null}
+                {settings.toolbar.print ? <button type="button" className="icon-button" aria-label="Print" onClick={handlePrint}>
                   <Printer className="icon" />
-                </button>
-                <button type="button" className="icon-button" aria-label="Download" onClick={handleDownload}>
+                </button> : null}
+                {settings.toolbar.download ? <button type="button" className="icon-button" aria-label="Download" onClick={handleDownload}>
                   <Download className="icon" />
-                </button>
-                <button
+                </button> : null}
+                {settings.toolbar.metadata ? <button
+                  type="button"
+                  className={clsx("icon-button", documentPanel === "metadata" && "toggled")}
+                  aria-label="Document metadata"
+                  onClick={() =>
+                    setDocumentPanel((current) => (current === "metadata" ? "toc" : "metadata"))
+                  }
+                >
+                  <Info className="icon" />
+                </button> : null}
+                {settings.toolbar.delete ? <button
                   type="button"
                   className="icon-button"
                   aria-label="Delete note"
@@ -3034,8 +2871,8 @@ export default function App() {
                   disabled={!selectedFile || isDirty}
                 >
                   <Trash2 className="icon" />
-                </button>
-                <button
+                </button> : null}
+                {settings.toolbar.bookmark ? <button
                   type="button"
                   className={clsx("icon-button", selectedFile && bookmarks.includes(selectedFile.path) && "toggled")}
                   aria-label="Bookmark"
@@ -3045,15 +2882,15 @@ export default function App() {
                     className="icon"
                     fill={selectedFile && bookmarks.includes(selectedFile.path) ? "currentColor" : "none"}
                   />
-                </button>
-                <button
+                </button> : null}
+                {settings.toolbar.settings ? <button
                   type="button"
                   className="icon-button"
                   aria-label="Open settings"
                   onClick={() => setIsSettingsOpen(true)}
                 >
                   <Settings className="icon" />
-                </button>
+                </button> : null}
                 <span className="preview-meta">UTF-8 • Markdown</span>
               </div>
             </div>
@@ -3118,10 +2955,102 @@ export default function App() {
                 )}
               </section>
 
-              {settings.showToc ? (
+              {settings.showToc || documentPanel === "metadata" ? (
                 <aside className="toc-panel">
-                <div className="toc-panel-header">Table Of Contents</div>
-                {viewMode === "preview" && headings.length > 0 ? (
+                <div className="toc-panel-header">
+                  {documentPanel === "metadata" ? "Document Metadata" : "Table Of Contents"}
+                </div>
+                {documentPanel === "metadata" ? (
+                  <div className="metadata-panel metadata-panel-document">
+                    <div className="metadata-item">
+                      <span>Project</span>
+                      <strong>{projectName}</strong>
+                    </div>
+                    <div className="metadata-item">
+                      <span>Root</span>
+                      <strong>{rootPath || "Not selected"}</strong>
+                    </div>
+                    <div className="metadata-item">
+                      <span>Excluded paths</span>
+                      <strong>{activeExcludePaths.join(", ")}</strong>
+                    </div>
+                    <div className="metadata-item">
+                      <span>Markdown files</span>
+                      <strong>{files.length}</strong>
+                    </div>
+                    <div className="metadata-item">
+                      <span>Bookmarks</span>
+                      <strong>{bookmarkedFiles.length}</strong>
+                    </div>
+                    <div className="metadata-item">
+                      <span>Current file</span>
+                      <strong>{selectedFile?.relative_path || "None"}</strong>
+                    </div>
+                    <div className="metadata-item">
+                      <span>Git Status</span>
+                      <strong>
+                        {selectedFile ? gitStatuses[selectedFile.relative_path] || "clean" : "None"}
+                      </strong>
+                    </div>
+                    <div className="metadata-item">
+                      <span>Title</span>
+                      <strong>{frontmatter.title || prettifyNoteTitle(selectedFile?.relative_path || "") || "None"}</strong>
+                    </div>
+                    <div className="metadata-item">
+                      <span>Template</span>
+                      <strong>{frontmatter.template || "None"}</strong>
+                    </div>
+                    <div className="metadata-item">
+                      <span>Date</span>
+                      <strong>{frontmatter.date || "None"}</strong>
+                    </div>
+                    <div className="metadata-item">
+                      <span>Tags</span>
+                      <strong>{frontmatter.tags.length > 0 ? frontmatter.tags.join(", ") : "None"}</strong>
+                    </div>
+                    <div className="metadata-item">
+                      <span>Repository</span>
+                      <strong>{activeGitInfo?.is_repo ? "Git repository" : "Local folder"}</strong>
+                    </div>
+                    {activeGitInfo?.is_repo ? (
+                      <>
+                        <div className="metadata-item">
+                          <span>Branch</span>
+                          <strong>{activeGitInfo.branch || "Unknown"}</strong>
+                        </div>
+                        <div className="metadata-item">
+                          <span>Remote</span>
+                          <strong>{activeGitInfo.remote_url || "No origin remote"}</strong>
+                        </div>
+                        <div className="metadata-item metadata-history">
+                          <span>Recent file history</span>
+                          {selectedFile ? (
+                            fileHistory.length > 0 ? (
+                              <div className="history-list">
+                                {fileHistory.map((entry) => (
+                                  <div key={entry.commit_hash} className="history-entry">
+                                    <div className="history-entry-topline">
+                                      <strong>{entry.summary}</strong>
+                                      <code>{entry.short_hash}</code>
+                                    </div>
+                                    <div className="history-entry-meta">
+                                      <span>{entry.author_name}</span>
+                                      <span>{new Date(entry.committed_at).toLocaleString()}</span>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <strong>No local commit history for this file yet.</strong>
+                            )
+                          ) : (
+                            <strong>Open a Markdown file to inspect its local git history.</strong>
+                          )}
+                        </div>
+                      </>
+                    ) : null}
+                  </div>
+                ) : viewMode === "preview" && headings.length > 0 ? (
                   <div className="toc-list">
                     {headings.map((heading, index) => (
                       <button
@@ -3150,56 +3079,65 @@ export default function App() {
         </main>
       </div>
       {notice ? <div className="app-notice">{notice}</div> : null}
-      {isSettingsOpen ? (
-        <div className="settings-backdrop" onClick={() => setIsSettingsOpen(false)}>
-          <section className="settings-modal" onClick={(event) => event.stopPropagation()}>
-            <div className="settings-header">
-              <div>
-                <h3>Settings</h3>
-                <p>Personalize the viewer without changing the core workflow.</p>
-              </div>
-              <button
-                type="button"
-                className="icon-button"
-                aria-label="Close settings"
-                onClick={() => setIsSettingsOpen(false)}
-              >
-                ×
-              </button>
+      <Dialog open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
+        <DialogContent className="grid grid-rows-[auto_minmax(0,1fr)_auto] p-0">
+          <DialogHeader className="settings-header-shadcn">
+            <div>
+              <DialogTitle>Settings</DialogTitle>
+              <DialogDescription>
+                Personalize the viewer without changing the core workflow.
+              </DialogDescription>
             </div>
+            <DialogIconClose />
+          </DialogHeader>
 
+          <ScrollArea className="settings-body">
             <div className="settings-grid">
-              <label className="settings-field">
+              <div className="settings-field">
                 <span>Theme</span>
-                <select
+                <Select
                   value={settings.theme}
-                  onChange={(event) =>
-                    updateSettings({ theme: event.target.value as AppSettings["theme"] })
+                  onValueChange={(value) =>
+                    updateSettings({ theme: value as AppSettings["theme"] })
                   }
                 >
-                  <option value="dark">Dark</option>
-                  <option value="light">Light</option>
-                </select>
-              </label>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select theme" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="light">Light</SelectItem>
+                    <SelectItem value="dark">Dark</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
 
-              <label className="settings-field">
+              <div className="settings-field">
                 <span>Auto-refresh</span>
-                <select
+                <Select
                   value={String(settings.autoRefreshMs)}
-                  onChange={(event) => updateSettings({ autoRefreshMs: Number(event.target.value) })}
+                  onValueChange={(value) =>
+                    updateSettings({ autoRefreshMs: Number(value) })
+                  }
                 >
-                  <option value="2000">2 seconds</option>
-                  <option value="4000">4 seconds</option>
-                  <option value="8000">8 seconds</option>
-                  <option value="15000">15 seconds</option>
-                </select>
-              </label>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select refresh interval" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="2000">2 seconds</SelectItem>
+                    <SelectItem value="4000">4 seconds</SelectItem>
+                    <SelectItem value="8000">8 seconds</SelectItem>
+                    <SelectItem value="15000">15 seconds</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
 
               <label className="settings-toggle">
                 <input
                   type="checkbox"
                   checked={settings.showToc}
-                  onChange={(event) => updateSettings({ showToc: event.target.checked })}
+                  onChange={(event) =>
+                    updateSettings({ showToc: event.target.checked })
+                  }
                 />
                 <div>
                   <strong>Show table of contents</strong>
@@ -3211,7 +3149,9 @@ export default function App() {
                 <input
                   type="checkbox"
                   checked={settings.sourceWrap}
-                  onChange={(event) => updateSettings({ sourceWrap: event.target.checked })}
+                  onChange={(event) =>
+                    updateSettings({ sourceWrap: event.target.checked })
+                  }
                 />
                 <div>
                   <strong>Wrap source lines</strong>
@@ -3223,7 +3163,9 @@ export default function App() {
                 <input
                   type="checkbox"
                   checked={settings.autosave}
-                  onChange={(event) => updateSettings({ autosave: event.target.checked })}
+                  onChange={(event) =>
+                    updateSettings({ autosave: event.target.checked })
+                  }
                 />
                 <div>
                   <strong>Autosave changes</strong>
@@ -3235,7 +3177,9 @@ export default function App() {
                 <input
                   type="checkbox"
                   checked={viewMode === "source"}
-                  onChange={(event) => setViewMode(event.target.checked ? "source" : "preview")}
+                  onChange={(event) =>
+                    setViewMode(event.target.checked ? "source" : "preview")
+                  }
                 />
                 <div>
                   <strong>Open in source mode</strong>
@@ -3243,42 +3187,104 @@ export default function App() {
                 </div>
               </label>
 
+              <div className="settings-field settings-field-wide">
+                <span>Toolbar items</span>
+                <div className="settings-toolbar-grid">
+                  <TooltipProvider delayDuration={120}>
+                    {TOOLBAR_ITEM_OPTIONS.map((item) => {
+                      const Icon = item.icon;
+                      const isSelected = settings.toolbar[item.key];
+                      return (
+                        <button
+                          key={item.key}
+                          type="button"
+                          className="settings-toolbar-item"
+                          aria-pressed={isSelected}
+                          onClick={() =>
+                            updateSettings({
+                              toolbar: {
+                                ...settings.toolbar,
+                                [item.key]: !settings.toolbar[item.key]
+                              }
+                            })
+                          }
+                        >
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span
+                                className={clsx(
+                                  "settings-toolbar-icon",
+                                  isSelected && "settings-toolbar-icon-selected"
+                                )}
+                                aria-hidden="true"
+                              >
+                                <Icon className="h-4.5 w-4.5" />
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <div className="grid gap-0.5">
+                                <span>{item.label}</span>
+                                <span className="text-[color:var(--text-muted)]">
+                                  {item.description}
+                                </span>
+                              </div>
+                            </TooltipContent>
+                          </Tooltip>
+                        </button>
+                      );
+                    })}
+                  </TooltipProvider>
+                </div>
+              </div>
+
               {activeSpace ? (
-                <label className="settings-field settings-field-wide">
+                <div className="settings-field settings-field-wide">
                   <span>Space excludes</span>
-                  <textarea
+                  <Textarea
                     value={excludePathsInput}
                     onChange={(event) => setExcludePathsInput(event.target.value)}
                     placeholder={DEFAULT_SPACE_EXCLUDES.join("\n")}
+                    className="min-h-[140px] resize-y"
                   />
-                  <small>One path per line. Matching folders are skipped during scan, search, summaries, and git badges.</small>
-                </label>
+                  <small>
+                    One path per line. Matching folders are skipped during scan, search,
+                    summaries, and git badges.
+                  </small>
+                </div>
               ) : null}
             </div>
+          </ScrollArea>
 
-            <div className="settings-footer">
+          <DialogFooter className="settings-footer-shadcn justify-between">
+            <div>
               {activeSpace ? (
-                <button type="button" className="secondary-action" onClick={handleSaveSpaceExcludes}>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={handleSaveSpaceExcludes}
+                >
                   Save space excludes
-                </button>
+                </Button>
               ) : null}
-              <button
+            </div>
+            <div className="flex items-center gap-3">
+              <Button
                 type="button"
-                className="secondary-action"
+                variant="secondary"
                 onClick={() => {
                   setSettings(DEFAULT_SETTINGS);
                   showNotice("Settings reset");
                 }}
               >
                 Reset defaults
-              </button>
-              <button type="button" className="primary-action" onClick={() => setIsSettingsOpen(false)}>
+              </Button>
+              <Button type="button" onClick={() => setIsSettingsOpen(false)}>
                 Done
-              </button>
+              </Button>
             </div>
-          </section>
-        </div>
-      ) : null}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       {noteDialog ? (
         <div className="settings-backdrop" onClick={() => setNoteDialog(null)}>
           <section className="settings-modal note-dialog" onClick={(event) => event.stopPropagation()}>
