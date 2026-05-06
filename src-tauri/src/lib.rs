@@ -1,5 +1,6 @@
 use std::{
     path::{Path, PathBuf},
+    process::Command,
     sync::Mutex,
 };
 
@@ -26,6 +27,25 @@ struct SearchResult {
     relative_path: String,
     snippet: String,
     matched_on_path: bool,
+}
+
+#[derive(Serialize, Clone)]
+struct SpaceSummary {
+    note_count: usize,
+    latest_modified_at: Option<String>,
+}
+
+#[derive(Serialize, Clone)]
+struct GitRepoInfo {
+    is_repo: bool,
+    branch: Option<String>,
+    remote_url: Option<String>,
+}
+
+#[derive(Serialize, Clone)]
+struct CloneResult {
+    path: String,
+    name: String,
 }
 
 #[command]
@@ -288,6 +308,148 @@ fn search_markdown(path: String, query: String, state: State<'_, AppState>) -> R
     Ok(results)
 }
 
+#[command]
+fn summarize_space(path: String, state: State<'_, AppState>) -> Result<SpaceSummary, String> {
+    let root = canonicalize_directory(Path::new(&path))?;
+    let mut note_count = 0usize;
+    let mut latest_modified_at: Option<std::time::SystemTime> = None;
+
+    for entry in WalkDir::new(&root)
+        .follow_links(false)
+        .into_iter()
+        .filter_map(Result::ok)
+    {
+        if !entry.file_type().is_file() || !is_markdown_path(entry.path()) {
+            continue;
+        }
+
+        note_count += 1;
+
+        if let Ok(metadata) = entry.metadata() {
+            if let Ok(modified_at) = metadata.modified() {
+                latest_modified_at = Some(
+                    latest_modified_at
+                        .map(|current| current.max(modified_at))
+                        .unwrap_or(modified_at),
+                );
+            }
+        }
+    }
+
+    let mut selected_root = state
+        .selected_root
+        .lock()
+        .map_err(|_| "Failed to access application state".to_string())?;
+    *selected_root = Some(root);
+
+    Ok(SpaceSummary {
+        note_count,
+        latest_modified_at: latest_modified_at.map(|value| {
+            chrono::DateTime::<chrono::Utc>::from(value).to_rfc3339()
+        }),
+    })
+}
+
+#[command]
+fn get_git_info(path: String) -> Result<GitRepoInfo, String> {
+    let root = canonicalize_directory(Path::new(&path))?;
+
+    let inside_output = Command::new("git")
+        .args(["-C", &root.to_string_lossy(), "rev-parse", "--is-inside-work-tree"])
+        .output()
+        .map_err(|error| format!("Failed to run git: {error}"))?;
+
+    if !inside_output.status.success()
+        || String::from_utf8_lossy(&inside_output.stdout).trim() != "true"
+    {
+        return Ok(GitRepoInfo {
+            is_repo: false,
+            branch: None,
+            remote_url: None,
+        });
+    }
+
+    let branch = Command::new("git")
+        .args(["-C", &root.to_string_lossy(), "branch", "--show-current"])
+        .output()
+        .ok()
+        .filter(|output| output.status.success())
+        .map(|output| String::from_utf8_lossy(&output.stdout).trim().to_string())
+        .filter(|value| !value.is_empty());
+
+    let remote_url = Command::new("git")
+        .args(["-C", &root.to_string_lossy(), "remote", "get-url", "origin"])
+        .output()
+        .ok()
+        .filter(|output| output.status.success())
+        .map(|output| String::from_utf8_lossy(&output.stdout).trim().to_string())
+        .filter(|value| !value.is_empty());
+
+    Ok(GitRepoInfo {
+        is_repo: true,
+        branch,
+        remote_url,
+    })
+}
+
+#[command]
+fn clone_repository(
+    repo_url: String,
+    destination_parent: String,
+    directory_name: String,
+    state: State<'_, AppState>,
+) -> Result<CloneResult, String> {
+    let parent = canonicalize_directory(Path::new(&destination_parent))?;
+    let name = directory_name.trim();
+
+    if name.is_empty() {
+        return Err("A destination folder name is required".to_string());
+    }
+
+    if name.contains('/') || name.contains('\\') {
+        return Err("Folder name cannot contain path separators".to_string());
+    }
+
+    let target = parent.join(name);
+    if target.exists() {
+        return Err(format!("{} already exists", target.display()));
+    }
+
+    let output = Command::new("git")
+        .args([
+            "clone",
+            &repo_url,
+            target.to_string_lossy().as_ref(),
+        ])
+        .output()
+        .map_err(|error| format!("Failed to run git clone: {error}"))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        return Err(if stderr.is_empty() {
+            "git clone failed".to_string()
+        } else {
+            stderr
+        });
+    }
+
+    let canonical_target = canonicalize_directory(&target)?;
+
+    let mut selected_root = state
+        .selected_root
+        .lock()
+        .map_err(|_| "Failed to access application state".to_string())?;
+    *selected_root = Some(canonical_target.clone());
+
+    Ok(CloneResult {
+        path: canonical_target.to_string_lossy().to_string(),
+        name: canonical_target
+            .file_name()
+            .map(|value| value.to_string_lossy().to_string())
+            .unwrap_or_else(|| name.to_string()),
+    })
+}
+
 fn selected_root(state: &State<'_, AppState>, message: &str) -> Result<PathBuf, String> {
     let selected_root = state
         .selected_root
@@ -385,7 +547,10 @@ pub fn run() {
             create_md_file,
             rename_md_file,
             delete_md_file,
-            search_markdown
+            search_markdown,
+            summarize_space,
+            get_git_info,
+            clone_repository
         ])
         .setup(|app| {
             if let Some(window) = app.get_webview_window("main") {

@@ -1705,6 +1705,7 @@ dependencies = [
 name = "md-project-viewer"
 version = "0.1.0"
 dependencies = [
+ "chrono",
  "serde",
  "tauri",
  "tauri-build",

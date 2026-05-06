@@ -13,10 +13,12 @@ import {
   Folder,
   HelpCircle,
   Info,
+  LayoutGrid,
   Pencil,
   PencilLine,
   Printer,
   RefreshCw,
+  Search,
   Settings,
   Share2,
   SquareTerminal,
@@ -64,6 +66,27 @@ type SearchResult = {
   matched_on_path: boolean;
 };
 
+type WorkspaceSearchGroup = {
+  spaceId: string;
+  spaceName: string;
+  localPath: string;
+  results: SearchResult[];
+};
+
+type GitRepoInfo = {
+  is_repo: boolean;
+  branch: string | null;
+  remote_url: string | null;
+};
+
+type RecentNote = {
+  path: string;
+  relativePath: string;
+  spaceId: string;
+  spaceName: string;
+  openedAt: string;
+};
+
 type AppSettings = {
   theme: "dark" | "light";
   showToc: boolean;
@@ -79,11 +102,14 @@ type FrontmatterData = {
   template?: string;
 };
 
+type TemplateKind = "note" | "journal" | "idea" | "meeting";
+
 type NoteDialogMode = "create" | "journal" | "rename";
 
 type NoteDialogState =
   | {
       mode: NoteDialogMode;
+      template: TemplateKind;
       title: string;
       description: string;
       confirmLabel: string;
@@ -91,10 +117,28 @@ type NoteDialogState =
     }
   | null;
 
+type SpaceSummary = {
+  note_count: number;
+  latest_modified_at: string | null;
+};
+
+type CloneDialogState = {
+  repoUrl: string;
+  destinationParent: string;
+  directoryName: string;
+};
+
+type CloneResult = {
+  path: string;
+  name: string;
+};
+
 const MarkdownPreview = lazy(() => import("./MarkdownPreview"));
 const BOOKMARKS_KEY = "md-project-viewer:bookmarks";
+const RECENT_NOTES_KEY = "md-project-viewer:recent-notes";
 const SETTINGS_KEY = "md-project-viewer:settings";
 const AUTO_REFRESH_MS = 4000;
+const MAX_RECENT_NOTES = 8;
 const RAIL_WIDTH = 80;
 const DEFAULT_SETTINGS: AppSettings = {
   theme: "dark",
@@ -171,6 +215,52 @@ template: journal
 ## Wins
 
 ## Next
+
+`;
+}
+
+function buildIdeaTemplate(path: string) {
+  const title = prettifyNoteTitle(path);
+  const today = formatIsoDate();
+
+  return `---
+title: ${title}
+created: ${today}
+tags: [idea]
+template: idea
+---
+
+# ${title}
+
+## Problem
+
+## Approach
+
+## Open Questions
+
+`;
+}
+
+function buildMeetingTemplate(path: string) {
+  const title = prettifyNoteTitle(path);
+  const today = formatIsoDate();
+
+  return `---
+title: ${title}
+date: ${today}
+tags: [meeting]
+template: meeting
+---
+
+# ${title}
+
+## Attendees
+
+## Agenda
+
+## Decisions
+
+## Follow-ups
 
 `;
 }
@@ -402,6 +492,7 @@ function TreeBranch({
 }
 
 export default function App() {
+  const [currentView, setCurrentView] = useState<"home" | "space" | "search">("home");
   const [rootPath, setRootPath] = useState("");
   const [files, setFiles] = useState<MdFile[]>([]);
   const [selectedFile, setSelectedFile] = useState<MdFile | null>(null);
@@ -411,26 +502,33 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
+  const [workspaceSearchQuery, setWorkspaceSearchQuery] = useState("");
+  const [workspaceSearchGroups, setWorkspaceSearchGroups] = useState<WorkspaceSearchGroup[]>([]);
+  const [isWorkspaceSearching, setIsWorkspaceSearching] = useState(false);
   const [isLoadingTree, setIsLoadingTree] = useState(false);
   const [isLoadingFile, setIsLoadingFile] = useState(false);
   const [isSavingFile, setIsSavingFile] = useState(false);
   const [isAutoRefreshing, setIsAutoRefreshing] = useState(false);
   const [error, setError] = useState("");
   const [bookmarks, setBookmarks] = useState<string[]>([]);
+  const [recentNotes, setRecentNotes] = useState<RecentNote[]>([]);
+  const [spaceSummaries, setSpaceSummaries] = useState<Record<string, SpaceSummary>>({});
   const [focusedPath, setFocusedPath] = useState<string | null>(null);
   const [sidebarWidth, setSidebarWidth] = useState(350);
   const [activePanel, setActivePanel] = useState<"explorer" | "bookmarks" | "metadata">("explorer");
-  const [activeTopTab, setActiveTopTab] = useState<"docs" | "github" | "marketplace">("docs");
   const [viewMode, setViewMode] = useState<"preview" | "source">("preview");
   const [notice, setNotice] = useState("");
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [noteDialog, setNoteDialog] = useState<NoteDialogState>(null);
+  const [cloneDialog, setCloneDialog] = useState<CloneDialogState | null>(null);
   const [notePathInput, setNotePathInput] = useState("");
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
+  const [gitInfos, setGitInfos] = useState<Record<string, GitRepoInfo>>({});
   const resizeState = useRef<{ startX: number; startWidth: number } | null>(null);
   const previewScrollRef = useRef<HTMLDivElement | null>(null);
   const hasAutoOpenedActiveSpace = useRef(false);
-  const { hydrated, spaces, activeSpace, upsertSpace, setActiveSpaceId, clearWorkspace } = useWorkspace();
+  const { hydrated, spaces, activeSpace, activeSpaceId, upsertSpace, setActiveSpaceId, clearWorkspace } =
+    useWorkspace();
 
   const tree = useMemo(() => buildTree(files), [files]);
   const visibleRows = useMemo(
@@ -443,6 +541,11 @@ export default function App() {
     () => files.filter((file) => bookmarks.includes(file.path)),
     [bookmarks, files]
   );
+  const homeBookmarkedNotes = useMemo(
+    () => recentNotes.filter((note) => bookmarks.includes(note.path)).slice(0, 6),
+    [bookmarks, recentNotes]
+  );
+  const activeGitInfo = activeSpaceId ? gitInfos[activeSpaceId] : undefined;
   const projectName = useMemo(() => {
     if (activeSpace?.name) {
       return activeSpace.name;
@@ -472,6 +575,20 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    const stored = window.localStorage.getItem(RECENT_NOTES_KEY);
+    if (!stored) {
+      return;
+    }
+
+    try {
+      const parsed = JSON.parse(stored) as RecentNote[];
+      setRecentNotes(Array.isArray(parsed) ? parsed : []);
+    } catch {
+      window.localStorage.removeItem(RECENT_NOTES_KEY);
+    }
+  }, []);
+
+  useEffect(() => {
     const stored = window.localStorage.getItem(SETTINGS_KEY);
     if (!stored) {
       return;
@@ -494,6 +611,7 @@ export default function App() {
     }
 
     hasAutoOpenedActiveSpace.current = true;
+    setCurrentView("space");
     void scanRoot(activeSpace.localPath, {
       preserveSelection: true,
       resetSearch: false,
@@ -504,6 +622,10 @@ export default function App() {
   useEffect(() => {
     window.localStorage.setItem(BOOKMARKS_KEY, JSON.stringify(bookmarks));
   }, [bookmarks]);
+
+  useEffect(() => {
+    window.localStorage.setItem(RECENT_NOTES_KEY, JSON.stringify(recentNotes));
+  }, [recentNotes]);
 
   useEffect(() => {
     window.localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
@@ -526,6 +648,36 @@ export default function App() {
 
     setNotePathInput(noteDialog.initialPath);
   }, [noteDialog]);
+
+  useEffect(() => {
+    if (spaces.length === 0) {
+      setGitInfos({});
+      return;
+    }
+
+    let cancelled = false;
+
+    void Promise.all(
+      spaces.map(async (space) => {
+        const info = await invoke<GitRepoInfo>("get_git_info", { path: space.localPath });
+        return [space.id, info] as const;
+      })
+    )
+      .then((entries) => {
+        if (!cancelled) {
+          setGitInfos(Object.fromEntries(entries));
+        }
+      })
+      .catch((gitError) => {
+        if (!cancelled) {
+          setError(gitError instanceof Error ? gitError.message : String(gitError));
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [spaces]);
 
   useEffect(() => {
     if (!rootPath) {
@@ -553,6 +705,94 @@ export default function App() {
 
     return () => window.clearTimeout(timeoutId);
   }, [rootPath, searchQuery]);
+
+  useEffect(() => {
+    if (currentView !== "search") {
+      return;
+    }
+
+    const query = workspaceSearchQuery.trim();
+    if (!query) {
+      setWorkspaceSearchGroups([]);
+      setIsWorkspaceSearching(false);
+      return;
+    }
+
+    let cancelled = false;
+    const timeoutId = window.setTimeout(() => {
+      setIsWorkspaceSearching(true);
+
+      void Promise.all(
+        spaces.map(async (space) => {
+          const results = await invoke<SearchResult[]>("search_markdown", {
+            path: space.localPath,
+            query
+          });
+
+          return {
+            spaceId: space.id,
+            spaceName: space.name,
+            localPath: space.localPath,
+            results
+          } satisfies WorkspaceSearchGroup;
+        })
+      )
+        .then((groups) => {
+          if (cancelled) {
+            return;
+          }
+
+          setWorkspaceSearchGroups(groups.filter((group) => group.results.length > 0));
+        })
+        .catch((searchError) => {
+          if (!cancelled) {
+            setError(searchError instanceof Error ? searchError.message : String(searchError));
+          }
+        })
+        .finally(() => {
+          if (!cancelled) {
+            setIsWorkspaceSearching(false);
+          }
+        });
+    }, 160);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeoutId);
+    };
+  }, [currentView, spaces, workspaceSearchQuery]);
+
+  useEffect(() => {
+    if (spaces.length === 0) {
+      setSpaceSummaries({});
+      return;
+    }
+
+    let cancelled = false;
+
+    void Promise.all(
+      spaces.map(async (space) => {
+        const summary = await invoke<SpaceSummary>("summarize_space", { path: space.localPath });
+        return [space.id, summary] as const;
+      })
+    )
+      .then((entries) => {
+        if (cancelled) {
+          return;
+        }
+
+        setSpaceSummaries(Object.fromEntries(entries));
+      })
+      .catch((summaryError) => {
+        if (!cancelled) {
+          setError(summaryError instanceof Error ? summaryError.message : String(summaryError));
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [spaces]);
 
   useEffect(() => {
     if (!rootPath) {
@@ -611,12 +851,14 @@ export default function App() {
       resetSearch?: boolean;
       silent?: boolean;
       allowDirty?: boolean;
+      activateView?: boolean;
     }
   ) {
     const preserveSelection = options?.preserveSelection ?? false;
     const resetSearch = options?.resetSearch ?? true;
     const silent = options?.silent ?? false;
     const allowDirty = options?.allowDirty ?? false;
+    const activateView = options?.activateView ?? !silent;
     if (isDirty && !allowDirty) {
       if (silent) {
         return;
@@ -651,6 +893,9 @@ export default function App() {
         : scanned[0] ?? null;
 
       setRootPath(path);
+      if (activateView) {
+        setCurrentView("space");
+      }
       setFiles(scanned);
       setSelectedFile(nextSelectedFile);
       setFocusedPath(nextSelectedFile?.relative_path ?? null);
@@ -700,6 +945,22 @@ export default function App() {
       setSelectedFile(file);
       setContent(fileContent);
       setDraftContent(fileContent);
+      if (activeSpaceId) {
+        setRecentNotes((current) => {
+          const next = [
+            {
+              path: file.path,
+              relativePath: file.relative_path,
+              spaceId: activeSpaceId,
+              spaceName: activeSpace?.name ?? projectName,
+              openedAt: new Date().toISOString()
+            },
+            ...current.filter((item) => item.path !== file.path)
+          ];
+
+          return next.slice(0, MAX_RECENT_NOTES);
+        });
+      }
     } catch (readError) {
       setError(readError instanceof Error ? readError.message : String(readError));
     } finally {
@@ -773,6 +1034,7 @@ export default function App() {
     }
 
     clearWorkspace();
+    setCurrentView("home");
     setRootPath("");
     setFiles([]);
     setSelectedFile(null);
@@ -969,7 +1231,32 @@ export default function App() {
       setActiveSpaceId(space.id);
     }
 
+    setCurrentView("space");
     void scanRoot(localPath, { preserveSelection: true, resetSearch: false });
+  }
+
+  function handleOpenHome() {
+    setCurrentView("home");
+  }
+
+  function handleOpenWorkspaceSearch() {
+    setCurrentView("search");
+  }
+
+  function handleOpenRecentNote(note: RecentNote) {
+    const space = spaces.find((item) => item.id === note.spaceId);
+    if (!space) {
+      showNotice("This space is no longer available");
+      return;
+    }
+
+    handleOpenSpace(space.localPath);
+    window.setTimeout(() => handleSelect(note.relativePath), 0);
+  }
+
+  function handleOpenWorkspaceSearchResult(group: WorkspaceSearchGroup, result: SearchResult) {
+    handleOpenSpace(group.localPath);
+    window.setTimeout(() => handleSelect(result.relative_path), 0);
   }
 
   async function handleSaveCurrentFile() {
@@ -1021,10 +1308,43 @@ export default function App() {
 
     setNoteDialog({
       mode: "create",
+      template: "note",
       title: "Create Note",
       description: "Choose where the new markdown note should live inside this space.",
       confirmLabel: "Create Note",
       initialPath: suggestedPath
+    });
+  }
+
+  async function handleCreateTemplateNote(template: "idea" | "meeting") {
+    if (!rootPath) {
+      showNotice("Select a folder first");
+      return;
+    }
+
+    if (isDirty) {
+      const shouldDiscard = window.confirm(
+        "You have unsaved changes in the current note. Discard them and create a new note?"
+      );
+
+      if (!shouldDiscard) {
+        return;
+      }
+    }
+
+    const initialPath =
+      template === "idea" ? `notes/ideas/${formatIsoDate()}-untitled.md` : `notes/meetings/${formatIsoDate()}-meeting.md`;
+
+    setNoteDialog({
+      mode: "create",
+      template,
+      title: template === "idea" ? "Create Idea Note" : "Create Meeting Note",
+      description:
+        template === "idea"
+          ? "Create an idea note with a lightweight problem and approach template."
+          : "Create a meeting note with attendees, agenda, decisions, and follow-ups.",
+      confirmLabel: template === "idea" ? "Create Idea" : "Create Meeting Note",
+      initialPath
     });
   }
 
@@ -1041,6 +1361,7 @@ export default function App() {
 
     setNoteDialog({
       mode: "rename",
+      template: frontmatter.template === "journal" ? "journal" : "note",
       title: "Rename Note",
       description: "Move the current note to a new markdown path inside this space.",
       confirmLabel: "Rename Note",
@@ -1066,6 +1387,7 @@ export default function App() {
 
     setNoteDialog({
       mode: "journal",
+      template: "journal",
       title: "Create Journal Entry",
       description: "Create a dated note inside the journal folder structure.",
       confirmLabel: "Create Entry",
@@ -1134,9 +1456,13 @@ export default function App() {
       }
 
       const initialContent =
-        noteDialog.mode === "journal"
+        noteDialog.template === "journal"
           ? buildJournalTemplate(requestedPath)
-          : buildNoteTemplate(requestedPath);
+          : noteDialog.template === "idea"
+            ? buildIdeaTemplate(requestedPath)
+            : noteDialog.template === "meeting"
+              ? buildMeetingTemplate(requestedPath)
+              : buildNoteTemplate(requestedPath);
 
       const createdFile = await invoke<MdFile>("create_md_file", {
         relativePath: requestedPath,
@@ -1152,9 +1478,82 @@ export default function App() {
       await loadFile(createdFile);
       setViewMode("source");
       setNoteDialog(null);
-      showNotice(noteDialog.mode === "journal" ? "Journal entry created" : "Note created");
+      showNotice(
+        noteDialog.template === "journal"
+          ? "Journal entry created"
+          : noteDialog.template === "idea"
+            ? "Idea note created"
+            : noteDialog.template === "meeting"
+              ? "Meeting note created"
+              : "Note created"
+      );
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : String(submitError));
+    }
+  }
+
+  function openCloneDialog() {
+    setCloneDialog({
+      repoUrl: "",
+      destinationParent: "",
+      directoryName: ""
+    });
+  }
+
+  async function chooseCloneDestination() {
+    const selected = await open({
+      directory: true,
+      multiple: false,
+      title: "Choose where to clone the repository"
+    });
+
+    if (!selected || Array.isArray(selected)) {
+      return;
+    }
+
+    setCloneDialog((current) =>
+      current
+        ? {
+            ...current,
+            destinationParent: selected
+          }
+        : current
+    );
+  }
+
+  async function handleSubmitCloneDialog() {
+    if (!cloneDialog) {
+      return;
+    }
+
+    if (!cloneDialog.repoUrl.trim()) {
+      setError("A repository URL is required");
+      return;
+    }
+
+    if (!cloneDialog.destinationParent.trim()) {
+      setError("Choose a destination folder");
+      return;
+    }
+
+    if (!cloneDialog.directoryName.trim()) {
+      setError("A local folder name is required");
+      return;
+    }
+
+    setError("");
+
+    try {
+      const cloned = await invoke<CloneResult>("clone_repository", {
+        repoUrl: cloneDialog.repoUrl.trim(),
+        destinationParent: cloneDialog.destinationParent.trim(),
+        directoryName: cloneDialog.directoryName.trim()
+      });
+      setCloneDialog(null);
+      await scanRoot(cloned.path, { preserveSelection: true, resetSearch: false });
+      showNotice("Repository cloned locally");
+    } catch (cloneError) {
+      setError(cloneError instanceof Error ? cloneError.message : String(cloneError));
     }
   }
 
@@ -1166,31 +1565,56 @@ export default function App() {
       }}
     >
       <aside className="design-rail">
-        <div className="rail-brand">
+        <button type="button" className={clsx("rail-brand", currentView === "home" && "active")} onClick={handleOpenHome}>
           <SquareTerminal className="icon" />
-        </div>
+        </button>
         <nav className="rail-nav">
           <button
             type="button"
-            className={clsx("rail-item", activePanel === "explorer" && "active")}
+            className={clsx("rail-item", currentView === "home" && "active")}
+            aria-label="Home"
+            onClick={handleOpenHome}
+          >
+            <LayoutGrid className="icon" />
+          </button>
+          <button
+            type="button"
+            className={clsx("rail-item", currentView === "search" && "active")}
+            aria-label="Search"
+            onClick={handleOpenWorkspaceSearch}
+          >
+            <Search className="icon" />
+          </button>
+          <button
+            type="button"
+            className={clsx("rail-item", currentView === "space" && activePanel === "explorer" && "active")}
             aria-label="Explorer"
-            onClick={() => setActivePanel("explorer")}
+            onClick={() => {
+              setCurrentView("space");
+              setActivePanel("explorer");
+            }}
           >
             <Folder className="icon" />
           </button>
           <button
             type="button"
-            className={clsx("rail-item", activePanel === "bookmarks" && "active")}
+            className={clsx("rail-item", currentView === "space" && activePanel === "bookmarks" && "active")}
             aria-label="Bookmarks"
-            onClick={() => setActivePanel("bookmarks")}
+            onClick={() => {
+              setCurrentView("space");
+              setActivePanel("bookmarks");
+            }}
           >
             <Bookmark className="icon" />
           </button>
           <button
             type="button"
-            className={clsx("rail-item", activePanel === "metadata" && "active")}
+            className={clsx("rail-item", currentView === "space" && activePanel === "metadata" && "active")}
             aria-label="Metadata"
-            onClick={() => setActivePanel("metadata")}
+            onClick={() => {
+              setCurrentView("space");
+              setActivePanel("metadata");
+            }}
           >
             <Info className="icon" />
           </button>
@@ -1418,6 +1842,22 @@ export default function App() {
                   <span>Tags</span>
                   <strong>{frontmatter.tags.length > 0 ? frontmatter.tags.join(", ") : "None"}</strong>
                 </div>
+                <div className="metadata-item">
+                  <span>Repository</span>
+                  <strong>{activeGitInfo?.is_repo ? "Git repository" : "Local folder"}</strong>
+                </div>
+                {activeGitInfo?.is_repo ? (
+                  <>
+                    <div className="metadata-item">
+                      <span>Branch</span>
+                      <strong>{activeGitInfo.branch || "Unknown"}</strong>
+                    </div>
+                    <div className="metadata-item">
+                      <span>Remote</span>
+                      <strong>{activeGitInfo.remote_url || "No origin remote"}</strong>
+                    </div>
+                  </>
+                ) : null}
               </div>
             ) : (
               <div className="explorer-empty">
@@ -1471,39 +1911,29 @@ export default function App() {
       <div className="workspace-shell">
         <header className="topbar">
           <div className="topbar-left">
-            <h2 className="topbar-title">Markdown Viewer</h2>
-            <nav className="topbar-nav">
-              <button
-                type="button"
-                className={clsx(activeTopTab === "docs" && "active")}
-                onClick={() => setActiveTopTab("docs")}
-              >
-                Docs
-              </button>
-              <button
-                type="button"
-                className={clsx(activeTopTab === "github" && "active")}
-                onClick={() => setActiveTopTab("github")}
-              >
-                GitHub
-              </button>
-              <button
-                type="button"
-                className={clsx(activeTopTab === "marketplace" && "active")}
-                onClick={() => setActiveTopTab("marketplace")}
-              >
-                Marketplace
-              </button>
-            </nav>
+            <h2 className="topbar-title">
+              {currentView === "home"
+                ? "Workspace Home"
+                : currentView === "search"
+                  ? "Workspace Search"
+                  : "Markdown Viewer"}
+            </h2>
           </div>
 
           <div className="topbar-right">
             <div className="topbar-search">
               <input
                 type="search"
-                value={searchQuery}
-                onChange={(event) => setSearchQuery(event.target.value)}
-                placeholder="Search files..."
+                value={currentView === "search" ? workspaceSearchQuery : searchQuery}
+                onChange={(event) => {
+                  if (currentView === "search") {
+                    setWorkspaceSearchQuery(event.target.value);
+                    return;
+                  }
+
+                  setSearchQuery(event.target.value);
+                }}
+                placeholder={currentView === "search" ? "Search across spaces..." : "Search files..."}
               />
             </div>
             <button type="button" className="icon-button" aria-label="Refresh" onClick={handleRefreshCurrent}>
@@ -1524,6 +1954,236 @@ export default function App() {
         </header>
 
         <main className="workspace-main">
+          {currentView === "home" ? (
+            <section className="workspace-home">
+              <div className="home-hero">
+                <div>
+                  <p className="home-kicker">Local-first workspace</p>
+                  <h1>Spaces, recent notes, and fast entry points.</h1>
+                  <p className="home-copy">
+                    Open multiple markdown spaces, jump back into recent notes, and start a new note or
+                    journal entry without digging through folders first.
+                  </p>
+                </div>
+                <div className="home-actions">
+                  <button type="button" className="primary-action" onClick={selectRootDirectory}>
+                    Add Space
+                  </button>
+                  <button type="button" className="secondary-action" onClick={openCloneDialog}>
+                    Clone Repository
+                  </button>
+                  <button
+                    type="button"
+                    className="secondary-action"
+                    onClick={() => {
+                      if (activeSpace?.localPath) {
+                        setCurrentView("space");
+                        void handleCreateJournalEntry();
+                        return;
+                      }
+                      showNotice("Open a space first to create a journal entry");
+                    }}
+                  >
+                    New Journal Entry
+                  </button>
+                </div>
+              </div>
+
+              <div className="home-grid">
+                <section className="home-panel">
+                  <div className="home-panel-header">
+                    <span>Spaces</span>
+                    <strong>{spaces.length}</strong>
+                  </div>
+                  <div className="home-space-list">
+                    {spaces.length > 0 ? (
+                      spaces.map((space) => (
+                        <button
+                          key={space.id}
+                          type="button"
+                          className="home-space-card"
+                          onClick={() => handleOpenSpace(space.localPath)}
+                        >
+                          <div className="home-space-topline">
+                            <Folder className="icon" />
+                            <span>{space.name}</span>
+                          </div>
+                          {gitInfos[space.id]?.is_repo ? (
+                            <div className="home-space-badge">
+                              Git repo{gitInfos[space.id]?.branch ? ` • ${gitInfos[space.id]?.branch}` : ""}
+                            </div>
+                          ) : null}
+                          <div className="home-space-path">{space.localPath}</div>
+                          <div className="home-space-stats">
+                            <span>{spaceSummaries[space.id]?.note_count ?? 0} notes</span>
+                            <span>
+                              {spaceSummaries[space.id]?.latest_modified_at
+                                ? `Updated ${new Date(spaceSummaries[space.id].latest_modified_at!).toLocaleDateString()}`
+                                : "No recent edits"}
+                            </span>
+                          </div>
+                          <div className="home-space-meta">
+                            Last opened {new Date(space.lastOpenedAt).toLocaleDateString()}
+                          </div>
+                        </button>
+                      ))
+                    ) : (
+                      <div className="explorer-empty">Add your first space to start building the workspace.</div>
+                    )}
+                  </div>
+                </section>
+
+                <section className="home-panel">
+                  <div className="home-panel-header">
+                    <span>Recent Notes</span>
+                    <strong>{recentNotes.length}</strong>
+                  </div>
+                  <div className="home-note-list">
+                    {recentNotes.length > 0 ? (
+                      recentNotes.map((note) => (
+                        <button
+                          key={`${note.spaceId}:${note.path}`}
+                          type="button"
+                          className="home-note-card"
+                          onClick={() => handleOpenRecentNote(note)}
+                        >
+                          <div className="home-note-title">{note.relativePath}</div>
+                          <div className="home-note-meta">{note.spaceName}</div>
+                        </button>
+                      ))
+                    ) : (
+                      <div className="explorer-empty">Open a few notes and they will appear here.</div>
+                    )}
+                  </div>
+                </section>
+
+                <section className="home-panel">
+                  <div className="home-panel-header">
+                    <span>Bookmarked Notes</span>
+                    <strong>{homeBookmarkedNotes.length}</strong>
+                  </div>
+                  <div className="home-note-list">
+                    {homeBookmarkedNotes.length > 0 ? (
+                      homeBookmarkedNotes.map((note) => (
+                        <button
+                          key={`bookmark:${note.spaceId}:${note.path}`}
+                          type="button"
+                          className="home-note-card"
+                          onClick={() => handleOpenRecentNote(note)}
+                        >
+                          <div className="home-note-title">{note.relativePath}</div>
+                          <div className="home-note-meta">{note.spaceName}</div>
+                        </button>
+                      ))
+                    ) : (
+                      <div className="explorer-empty">Bookmark notes to pin them on the workspace home.</div>
+                    )}
+                  </div>
+                </section>
+
+                <section className="home-panel">
+                  <div className="home-panel-header">
+                    <span>Create From Template</span>
+                    <strong>4</strong>
+                  </div>
+                  <div className="home-template-list">
+                    <button type="button" className="home-template-card" onClick={() => void handleCreateNote()}>
+                      <strong>Blank Note</strong>
+                      <span>General markdown note with basic frontmatter.</span>
+                    </button>
+                    <button
+                      type="button"
+                      className="home-template-card"
+                      onClick={() => void handleCreateJournalEntry()}
+                    >
+                      <strong>Daily Journal</strong>
+                      <span>Dated entry with notes, wins, and next sections.</span>
+                    </button>
+                    <button
+                      type="button"
+                      className="home-template-card"
+                      onClick={() => void handleCreateTemplateNote("idea")}
+                    >
+                      <strong>Idea Note</strong>
+                      <span>Capture a problem, approach, and open questions.</span>
+                    </button>
+                    <button
+                      type="button"
+                      className="home-template-card"
+                      onClick={() => void handleCreateTemplateNote("meeting")}
+                    >
+                      <strong>Meeting Note</strong>
+                      <span>Track attendees, agenda, decisions, and follow-ups.</span>
+                    </button>
+                  </div>
+                </section>
+              </div>
+            </section>
+          ) : currentView === "search" ? (
+            <section className="workspace-search">
+              <div className="search-hero">
+                <p className="home-kicker">Across all spaces</p>
+                <h1>Find notes by path or content.</h1>
+                <p className="home-copy">
+                  Search every connected space at once, then jump straight into the matching note.
+                </p>
+              </div>
+
+              {workspaceSearchQuery.trim() ? (
+                isWorkspaceSearching ? (
+                  <div className="explorer-empty">Searching across spaces…</div>
+                ) : workspaceSearchGroups.length > 0 ? (
+                  <div className="workspace-search-groups">
+                    {workspaceSearchGroups.map((group) => (
+                      <section key={group.spaceId} className="workspace-search-group">
+                        <div className="workspace-search-group-header">
+                          <div className="home-space-topline">
+                            <Folder className="icon" />
+                            <span>{group.spaceName}</span>
+                          </div>
+                          <strong>{group.results.length} matches</strong>
+                        </div>
+                        <div className="workspace-search-group-results">
+                          {group.results.map((result) => (
+                            <button
+                              key={`${group.spaceId}:${result.path}`}
+                              type="button"
+                              className="search-result-item"
+                              onClick={() => handleOpenWorkspaceSearchResult(group, result)}
+                            >
+                              <div className="search-result-topline">
+                                <FileText className="icon explorer-row-icon file" />
+                                <span className="search-result-name">{result.relative_path}</span>
+                              </div>
+                              <div className="search-result-meta">
+                                {result.matched_on_path ? "Path match" : "Content match"}
+                              </div>
+                              {result.snippet ? (
+                                <div className="search-result-snippet">{result.snippet}</div>
+                              ) : null}
+                            </button>
+                          ))}
+                        </div>
+                      </section>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="explorer-empty">No notes matched this workspace search.</div>
+                )
+              ) : (
+                <div className="search-empty-grid">
+                  <div className="home-template-card">
+                    <strong>Search all spaces</strong>
+                    <span>Use the top bar to search note paths and content across your connected workspaces.</span>
+                  </div>
+                  <div className="home-template-card">
+                    <strong>Jump back faster</strong>
+                    <span>Results are grouped by space so it is easy to orient yourself before opening a note.</span>
+                  </div>
+                </div>
+              )}
+            </section>
+          ) : (
           <section className="preview-shell">
             <div className="preview-toolbar">
               <div className="preview-toggle">
@@ -1714,6 +2374,7 @@ export default function App() {
               ) : null}
             </div>
           </section>
+          )}
         </main>
       </div>
       {notice ? <div className="app-notice">{notice}</div> : null}
@@ -1854,6 +2515,83 @@ export default function App() {
               </button>
               <button type="button" className="primary-action" onClick={() => void handleSubmitNoteDialog()}>
                 {noteDialog.confirmLabel}
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
+      {cloneDialog ? (
+        <div className="settings-backdrop" onClick={() => setCloneDialog(null)}>
+          <section className="settings-modal note-dialog" onClick={(event) => event.stopPropagation()}>
+            <div className="settings-header">
+              <div>
+                <h3>Clone Repository</h3>
+                <p>Clone a public or already-authenticated git repository into a local space.</p>
+              </div>
+              <button
+                type="button"
+                className="icon-button"
+                aria-label="Close clone dialog"
+                onClick={() => setCloneDialog(null)}
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="settings-grid">
+              <label className="settings-field">
+                <span>Repository URL</span>
+                <input
+                  type="text"
+                  value={cloneDialog.repoUrl}
+                  onChange={(event) =>
+                    setCloneDialog((current) => (current ? { ...current, repoUrl: event.target.value } : current))
+                  }
+                  placeholder="https://github.com/owner/repo.git"
+                  autoFocus
+                />
+              </label>
+
+              <label className="settings-field">
+                <span>Destination Folder</span>
+                <div className="inline-field">
+                  <input
+                    type="text"
+                    value={cloneDialog.destinationParent}
+                    onChange={(event) =>
+                      setCloneDialog((current) =>
+                        current ? { ...current, destinationParent: event.target.value } : current
+                      )
+                    }
+                    placeholder="/Users/you/repos"
+                  />
+                  <button type="button" className="secondary-action" onClick={() => void chooseCloneDestination()}>
+                    Choose
+                  </button>
+                </div>
+              </label>
+
+              <label className="settings-field">
+                <span>Local Folder Name</span>
+                <input
+                  type="text"
+                  value={cloneDialog.directoryName}
+                  onChange={(event) =>
+                    setCloneDialog((current) =>
+                      current ? { ...current, directoryName: event.target.value } : current
+                    )
+                  }
+                  placeholder="repo-name"
+                />
+              </label>
+            </div>
+
+            <div className="settings-footer">
+              <button type="button" className="secondary-action" onClick={() => setCloneDialog(null)}>
+                Cancel
+              </button>
+              <button type="button" className="primary-action" onClick={() => void handleSubmitCloneDialog()}>
+                Clone Repository
               </button>
             </div>
           </section>
