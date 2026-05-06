@@ -35,6 +35,7 @@ import {
   Warehouse
 } from "lucide-react";
 import { Button } from "./components/ui/button";
+import { Checkbox } from "./components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -2717,10 +2718,11 @@ export default function App() {
                     </select>
                   </label>
                   <label className="search-filter-toggle">
-                    <input
-                      type="checkbox"
+                    <Checkbox
                       checked={workspaceSearchBookmarksOnly}
-                      onChange={(event) => setWorkspaceSearchBookmarksOnly(event.target.checked)}
+                      onCheckedChange={(checked) =>
+                        setWorkspaceSearchBookmarksOnly(checked === true)
+                      }
                     />
                     <span>Bookmarked notes only</span>
                   </label>
@@ -3206,11 +3208,10 @@ export default function App() {
               </div>
 
               <label className="settings-toggle">
-                <input
-                  type="checkbox"
+                <Checkbox
                   checked={settings.showToc}
-                  onChange={(event) =>
-                    updateSettings({ showToc: event.target.checked })
+                  onCheckedChange={(checked) =>
+                    updateSettings({ showToc: checked === true })
                   }
                 />
                 <div>
@@ -3220,11 +3221,10 @@ export default function App() {
               </label>
 
               <label className="settings-toggle">
-                <input
-                  type="checkbox"
+                <Checkbox
                   checked={settings.sourceWrap}
-                  onChange={(event) =>
-                    updateSettings({ sourceWrap: event.target.checked })
+                  onCheckedChange={(checked) =>
+                    updateSettings({ sourceWrap: checked === true })
                   }
                 />
                 <div>
@@ -3234,11 +3234,10 @@ export default function App() {
               </label>
 
               <label className="settings-toggle">
-                <input
-                  type="checkbox"
+                <Checkbox
                   checked={settings.autosave}
-                  onChange={(event) =>
-                    updateSettings({ autosave: event.target.checked })
+                  onCheckedChange={(checked) =>
+                    updateSettings({ autosave: checked === true })
                   }
                 />
                 <div>
@@ -3248,11 +3247,10 @@ export default function App() {
               </label>
 
               <label className="settings-toggle">
-                <input
-                  type="checkbox"
+                <Checkbox
                   checked={viewMode === "source"}
-                  onChange={(event) =>
-                    setViewMode(event.target.checked ? "source" : "preview")
+                  onCheckedChange={(checked) =>
+                    setViewMode(checked === true ? "source" : "preview")
                   }
                 />
                 <div>
