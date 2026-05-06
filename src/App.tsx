@@ -9,23 +9,15 @@ import {
   Copy,
   ChevronDown,
   ChevronRight,
-  Download,
   FileText,
-  FilePlus2,
   Folder,
   FolderOpen,
   HelpCircle,
-  Info,
   LayoutGrid,
   Pin,
-  Pencil,
   PencilLine,
   PenTool,
-  Printer,
-  RefreshCw,
   Search,
-  Settings,
-  Share2,
   Star,
   TerminalSquare,
   Trash2,
@@ -34,10 +26,13 @@ import {
   UserCircle2,
   Warehouse
 } from "lucide-react";
+import { PreviewToolbar } from "./components/PreviewToolbar";
+import { Topbar } from "./components/Topbar";
 import { Button } from "./components/ui/button";
 import { Checkbox } from "./components/ui/checkbox";
 import {
   Dialog,
+  DialogClose,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -45,6 +40,8 @@ import {
   DialogIconClose,
   DialogTitle
 } from "./components/ui/dialog";
+import { Input } from "./components/ui/input";
+import { Label } from "./components/ui/label";
 import { ScrollArea } from "./components/ui/scroll-area";
 import {
   Select,
@@ -2368,49 +2365,27 @@ export default function App() {
       ) : null}
 
       <div className="workspace-shell">
-        <header className="topbar">
-          <div className="topbar-left">
-            <h2 className="topbar-title">
-              {currentView === "home"
-                ? "Workspace Home"
-                : currentView === "search"
-                  ? "Workspace Search"
-                  : "Markdown Viewer"}
-            </h2>
-          </div>
-
-          <div className="topbar-right">
-            <div className="topbar-search">
-              <input
-                type="search"
-                value={currentView === "search" ? workspaceSearchQuery : searchQuery}
-                onChange={(event) => {
-                  if (currentView === "search") {
-                    setWorkspaceSearchQuery(event.target.value);
-                    return;
-                  }
-
-                  setSearchQuery(event.target.value);
-                }}
-                placeholder={currentView === "search" ? "Search across spaces..." : "Search files..."}
-              />
-            </div>
-            <button type="button" className="icon-button" aria-label="Refresh" onClick={handleRefreshCurrent}>
-              <RefreshCw className="icon" />
-            </button>
-            <button type="button" className="icon-button" aria-label="Share" onClick={() => void handleShare()}>
-              <Share2 className="icon" />
-            </button>
-            <button
-              type="button"
-              className="avatar-chip"
-              aria-label="Profile"
-              onClick={() => showNotice("Local-only desktop viewer")}
-            >
-              <UserCircle2 className="icon" />
-            </button>
-          </div>
-        </header>
+        <Topbar
+          title={
+            currentView === "home"
+              ? "Workspace Home"
+              : currentView === "search"
+                ? "Workspace Search"
+                : "Markdown Viewer"
+          }
+          searchValue={currentView === "search" ? workspaceSearchQuery : searchQuery}
+          searchPlaceholder={currentView === "search" ? "Search across spaces..." : "Search files..."}
+          onSearchChange={(value) => {
+            if (currentView === "search") {
+              setWorkspaceSearchQuery(value);
+              return;
+            }
+            setSearchQuery(value);
+          }}
+          onRefresh={handleRefreshCurrent}
+          onShare={handleShare}
+          onProfile={() => showNotice("Local-only desktop viewer")}
+        />
 
         <main className="workspace-main">
           {currentView === "home" ? (
@@ -2707,16 +2682,21 @@ export default function App() {
                   Search every connected space at once, then jump straight into the matching note.
                 </p>
                 <div className="search-filters">
-                  <label className="search-filter">
-                    <span>Scope</span>
-                    <select
+                  <div className="search-filter">
+                    <Label>Scope</Label>
+                    <Select
                       value={workspaceSearchScope}
-                      onChange={(event) => setWorkspaceSearchScope(event.target.value as WorkspaceSearchScope)}
+                      onValueChange={(value) => setWorkspaceSearchScope(value as WorkspaceSearchScope)}
                     >
-                      <option value="all">All spaces</option>
-                      <option value="current">Current space</option>
-                    </select>
-                  </label>
+                      <SelectTrigger className="h-10 min-w-[160px] rounded-[8px] bg-[color:var(--surface-lowest)]">
+                        <SelectValue placeholder="Choose scope" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All spaces</SelectItem>
+                        <SelectItem value="current">Current space</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                   <label className="search-filter-toggle">
                     <Checkbox
                       checked={workspaceSearchBookmarksOnly}
@@ -2802,30 +2782,39 @@ export default function App() {
               )}
             </section>
           ) : (
-          <section className="preview-shell">
-            <div className="preview-toolbar">
-              <div className="preview-toggle">
-                <button
+          <section className="grid h-full min-h-0 grid-rows-[58px_minmax(0,1fr)]">
+            <div className="flex items-center justify-between gap-4 border-b border-[color:var(--outline)] bg-[color:var(--toolbar-bg)] px-5">
+              <div className="inline-flex gap-1 rounded-[8px] bg-[color:var(--surface-highest)] p-1">
+                <Button
                   type="button"
-                  className={clsx(viewMode === "preview" && "active")}
+                  variant="ghost"
+                  className={clsx(
+                    "h-auto rounded-[6px] px-4 py-1.5 text-[0.76rem] font-bold text-[color:var(--text-muted)] hover:bg-transparent hover:text-[color:var(--text)]",
+                    viewMode === "preview" && "bg-[color:var(--bg)] text-[color:var(--text)] hover:bg-[color:var(--bg)]"
+                  )}
                   onClick={() => setViewMode("preview")}
                 >
                   Preview
-                </button>
-                <button
+                </Button>
+                <Button
                   type="button"
-                  className={clsx(viewMode === "source" && "active")}
+                  variant="ghost"
+                  className={clsx(
+                    "h-auto rounded-[6px] px-4 py-1.5 text-[0.76rem] font-bold text-[color:var(--text-muted)] hover:bg-transparent hover:text-[color:var(--text)]",
+                    viewMode === "source" && "bg-[color:var(--bg)] text-[color:var(--text)] hover:bg-[color:var(--bg)]"
+                  )}
                   onClick={() => setViewMode("source")}
                 >
                   Source
-                </button>
+                </Button>
               </div>
 
-              <div className="preview-toolbar-right">
+              <div className="flex items-center gap-2">
                 {settings.toolbar.save && selectedFile ? (
-                  <button
+                  <Button
                     type="button"
-                    className={clsx("secondary-action toolbar-save", isDirty && "dirty")}
+                    variant={isDirty ? "default" : "secondary"}
+                    className="min-w-[72px] px-[14px] py-2 text-[0.76rem] font-bold"
                     aria-label="Save"
                     onClick={() => void handleSaveCurrentFile()}
                     disabled={isSavingFile}
@@ -2839,75 +2828,93 @@ export default function App() {
                           ? "Autosave on"
                           : "Save"
                         : "Saved"}
-                  </button>
+                  </Button>
                 ) : null}
-                {settings.toolbar.createNote ? <button
+                {settings.toolbar.createNote ? <Button
                   type="button"
-                  className="icon-button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-[34px] w-[34px] rounded-[6px] text-[color:var(--text-muted)] hover:bg-[color:var(--surface-high)] hover:text-[color:var(--text)]"
                   aria-label="Create note"
                   onClick={() => void handleCreateNote()}
                 >
                   <FilePlus2 className="icon" />
-                </button> : null}
-                {settings.toolbar.createJournal ? <button
+                </Button> : null}
+                {settings.toolbar.createJournal ? <Button
                   type="button"
-                  className="icon-button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-[34px] w-[34px] rounded-[6px] text-[color:var(--text-muted)] hover:bg-[color:var(--surface-high)] hover:text-[color:var(--text)]"
                   aria-label="Create journal entry"
                   onClick={() => void handleCreateJournalEntry()}
                 >
                   <CalendarDays className="icon" />
-                </button> : null}
-                {settings.toolbar.rename ? <button
+                </Button> : null}
+                {settings.toolbar.rename ? <Button
                   type="button"
-                  className="icon-button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-[34px] w-[34px] rounded-[6px] text-[color:var(--text-muted)] hover:bg-[color:var(--surface-high)] hover:text-[color:var(--text)]"
                   aria-label="Rename note"
                   onClick={() => void handleRenameCurrentFile()}
                   disabled={!selectedFile || isDirty}
                 >
                   <PencilLine className="icon" />
-                </button> : null}
-                {settings.toolbar.editMode ? <button
+                </Button> : null}
+                {settings.toolbar.editMode ? <Button
                   type="button"
-                  className="icon-button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-[34px] w-[34px] rounded-[6px] text-[color:var(--text-muted)] hover:bg-[color:var(--surface-high)] hover:text-[color:var(--text)]"
                   aria-label="Edit"
                   onClick={() => setViewMode((current) => (current === "preview" ? "source" : "preview"))}
                 >
                   <Pencil className="icon" />
-                </button> : null}
-                {settings.toolbar.print ? <button type="button" className="icon-button" aria-label="Print" onClick={handlePrint}>
+                </Button> : null}
+                {settings.toolbar.print ? <Button type="button" variant="ghost" size="icon" className="h-[34px] w-[34px] rounded-[6px] text-[color:var(--text-muted)] hover:bg-[color:var(--surface-high)] hover:text-[color:var(--text)]" aria-label="Print" onClick={handlePrint}>
                   <Printer className="icon" />
-                </button> : null}
-                {settings.toolbar.download ? <button type="button" className="icon-button" aria-label="Download" onClick={handleDownload}>
+                </Button> : null}
+                {settings.toolbar.download ? <Button type="button" variant="ghost" size="icon" className="h-[34px] w-[34px] rounded-[6px] text-[color:var(--text-muted)] hover:bg-[color:var(--surface-high)] hover:text-[color:var(--text)]" aria-label="Download" onClick={handleDownload}>
                   <Download className="icon" />
-                </button> : null}
-                {settings.toolbar.metadata ? <button
+                </Button> : null}
+                {settings.toolbar.metadata ? <Button
                   type="button"
-                  className={clsx("icon-button", documentPanel === "metadata" && "toggled")}
+                  variant="ghost"
+                  size="icon"
+                  className={clsx(
+                    "h-[34px] w-[34px] rounded-[6px] text-[color:var(--text-muted)] hover:bg-[color:var(--surface-high)] hover:text-[color:var(--text)]",
+                    documentPanel === "metadata" && "text-[color:var(--indigo-soft)]"
+                  )}
                   aria-label="Document metadata"
                   onClick={() =>
                     setDocumentPanel((current) => (current === "metadata" ? "toc" : "metadata"))
                   }
                 >
                   <Info className="icon" />
-                </button> : null}
-                {settings.toolbar.delete ? <button
+                </Button> : null}
+                {settings.toolbar.delete ? <Button
                   type="button"
-                  className="icon-button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-[34px] w-[34px] rounded-[6px] text-[color:var(--text-muted)] hover:bg-[color:var(--surface-high)] hover:text-[color:var(--text)]"
                   aria-label="Delete note"
                   onClick={() => void handleDeleteCurrentFile()}
                   disabled={!selectedFile || isDirty}
                 >
                   <Trash2 className="icon" />
-                </button> : null}
-                {settings.toolbar.settings ? <button
+                </Button> : null}
+                {settings.toolbar.settings ? <Button
                   type="button"
-                  className="icon-button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-[34px] w-[34px] rounded-[6px] text-[color:var(--text-muted)] hover:bg-[color:var(--surface-high)] hover:text-[color:var(--text)]"
                   aria-label="Open settings"
                   onClick={() => setIsSettingsOpen(true)}
                 >
                   <Settings className="icon" />
-                </button> : null}
-                <span className="preview-meta">UTF-8 • Markdown</span>
+                </Button> : null}
+                <Separator orientation="vertical" className="mx-1 h-5 bg-[color:var(--outline)]" />
+                <span className="pl-0 text-[0.72rem] text-[color:var(--text-muted)]">UTF-8 • Markdown</span>
               </div>
             </div>
 
@@ -3357,107 +3364,102 @@ export default function App() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      {noteDialog ? (
-        <div className="settings-backdrop" onClick={() => setNoteDialog(null)}>
-          <section className="settings-modal note-dialog" onClick={(event) => event.stopPropagation()}>
-            <div className="settings-header">
+      <Dialog open={Boolean(noteDialog)} onOpenChange={(open) => !open && setNoteDialog(null)}>
+        {noteDialog ? (
+          <DialogContent className="note-dialog grid grid-rows-[auto_minmax(0,1fr)_auto] p-0">
+            <DialogHeader className="settings-header-shadcn">
               <div>
-                <h3>{noteDialog.title}</h3>
-                <p>{noteDialog.description}</p>
+                <DialogTitle>{noteDialog.title}</DialogTitle>
+                <DialogDescription>{noteDialog.description}</DialogDescription>
               </div>
-              <button
-                type="button"
-                className="icon-button"
-                aria-label="Close note dialog"
-                onClick={() => setNoteDialog(null)}
-              >
-                ×
-              </button>
-            </div>
+              <DialogIconClose />
+            </DialogHeader>
 
             <div className="settings-grid">
               {noteDialog.mode === "rename" ? (
-                <label className="settings-field">
-                  <span>Markdown path</span>
-                  <input
+                <div className="settings-field">
+                  <Label>Markdown path</Label>
+                  <Input
                     type="text"
                     value={notePathInput}
                     onChange={(event) => setNotePathInput(event.target.value)}
                     placeholder="notes/untitled.md"
                     autoFocus
                   />
-                </label>
+                </div>
               ) : (
                 <>
-                  <label className="settings-field">
-                    <span>Parent folder</span>
-                    <select
+                  <div className="settings-field">
+                    <Label>Parent folder</Label>
+                    <Select
                       value={noteDirectoryInput}
-                      onChange={(event) => handleNoteDirectoryChange(event.target.value)}
+                      onValueChange={handleNoteDirectoryChange}
                     >
-                      {directoryOptions.map((directory) => (
-                        <option key={directory || "root"} value={directory}>
-                          {directory || "Root"}
-                        </option>
-                      ))}
-                    </select>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Choose a folder" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {directoryOptions.map((directory) => (
+                          <SelectItem key={directory || "root"} value={directory}>
+                            {directory || "Root"}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                     <div className="inline-field">
-                      <button type="button" className="secondary-action" onClick={handleUseCurrentFolder}>
+                      <Button type="button" variant="secondary" onClick={handleUseCurrentFolder}>
                         Use current folder
-                      </button>
+                      </Button>
                     </div>
-                  </label>
-                  <label className="settings-field">
-                    <span>Filename</span>
-                    <input
+                  </div>
+                  <div className="settings-field">
+                    <Label>Filename</Label>
+                    <Input
                       type="text"
                       value={noteNameInput}
                       onChange={(event) => handleNoteNameChange(event.target.value)}
                       placeholder="untitled.md"
                       autoFocus
                     />
-                  </label>
-                  <label className="settings-field settings-field-wide">
-                    <span>Resulting path</span>
-                    <input type="text" value={notePathInput} readOnly />
-                  </label>
+                  </div>
+                  <div className="settings-field settings-field-wide">
+                    <Label>Resulting path</Label>
+                    <Input type="text" value={notePathInput} readOnly />
+                  </div>
                 </>
               )}
             </div>
 
-            <div className="settings-footer">
-              <button type="button" className="secondary-action" onClick={() => setNoteDialog(null)}>
-                Cancel
-              </button>
-              <button type="button" className="primary-action" onClick={() => void handleSubmitNoteDialog()}>
+            <DialogFooter className="settings-footer-shadcn">
+              <DialogClose asChild>
+                <Button type="button" variant="secondary">
+                  Cancel
+                </Button>
+              </DialogClose>
+              <Button type="button" onClick={() => void handleSubmitNoteDialog()}>
                 {noteDialog.confirmLabel}
-              </button>
-            </div>
-          </section>
-        </div>
-      ) : null}
-      {cloneDialog ? (
-        <div className="settings-backdrop" onClick={() => setCloneDialog(null)}>
-          <section className="settings-modal note-dialog" onClick={(event) => event.stopPropagation()}>
-            <div className="settings-header">
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        ) : null}
+      </Dialog>
+      <Dialog open={Boolean(cloneDialog)} onOpenChange={(open) => !open && setCloneDialog(null)}>
+        {cloneDialog ? (
+          <DialogContent className="note-dialog grid grid-rows-[auto_minmax(0,1fr)_auto] p-0">
+            <DialogHeader className="settings-header-shadcn">
               <div>
-                <h3>Clone Repository</h3>
-                <p>Clone a public or already-authenticated git repository into a local space.</p>
+                <DialogTitle>Clone Repository</DialogTitle>
+                <DialogDescription>
+                  Clone a public or already-authenticated git repository into a local space.
+                </DialogDescription>
               </div>
-              <button
-                type="button"
-                className="icon-button"
-                aria-label="Close clone dialog"
-                onClick={() => setCloneDialog(null)}
-              >
-                ×
-              </button>
-            </div>
+              <DialogIconClose />
+            </DialogHeader>
 
             <div className="settings-grid">
-              <label className="settings-field">
-                <span>Repository URL</span>
-                <input
+              <div className="settings-field">
+                <Label>Repository URL</Label>
+                <Input
                   type="text"
                   value={cloneDialog.repoUrl}
                   onChange={(event) =>
@@ -3466,12 +3468,12 @@ export default function App() {
                   placeholder="https://github.com/owner/repo.git"
                   autoFocus
                 />
-              </label>
+              </div>
 
-              <label className="settings-field">
-                <span>Destination Folder</span>
+              <div className="settings-field">
+                <Label>Destination Folder</Label>
                 <div className="inline-field">
-                  <input
+                  <Input
                     type="text"
                     value={cloneDialog.destinationParent}
                     onChange={(event) =>
@@ -3481,15 +3483,15 @@ export default function App() {
                     }
                     placeholder="/Users/you/repos"
                   />
-                  <button type="button" className="secondary-action" onClick={() => void chooseCloneDestination()}>
+                  <Button type="button" variant="secondary" onClick={() => void chooseCloneDestination()}>
                     Choose
-                  </button>
+                  </Button>
                 </div>
-              </label>
+              </div>
 
-              <label className="settings-field">
-                <span>Local Folder Name</span>
-                <input
+              <div className="settings-field">
+                <Label>Local Folder Name</Label>
+                <Input
                   type="text"
                   value={cloneDialog.directoryName}
                   onChange={(event) =>
@@ -3499,20 +3501,22 @@ export default function App() {
                   }
                   placeholder="repo-name"
                 />
-              </label>
+              </div>
             </div>
 
-            <div className="settings-footer">
-              <button type="button" className="secondary-action" onClick={() => setCloneDialog(null)}>
-                Cancel
-              </button>
-              <button type="button" className="primary-action" onClick={() => void handleSubmitCloneDialog()}>
+            <DialogFooter className="settings-footer-shadcn">
+              <DialogClose asChild>
+                <Button type="button" variant="secondary">
+                  Cancel
+                </Button>
+              </DialogClose>
+              <Button type="button" onClick={() => void handleSubmitCloneDialog()}>
                 Clone Repository
-              </button>
-            </div>
-          </section>
-        </div>
-      ) : null}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        ) : null}
+      </Dialog>
     </div>
   );
 }
