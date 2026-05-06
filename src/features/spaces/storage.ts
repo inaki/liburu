@@ -58,7 +58,9 @@ export function createSpace(path: string, indexedAt?: string): Space {
 function hydrateSpace(space: Space): Space {
   return {
     ...space,
-    excludePaths: normalizeExcludePaths(space.excludePaths)
+    excludePaths: normalizeExcludePaths(space.excludePaths),
+    isPinned: Boolean(space.isPinned),
+    isArchived: Boolean(space.isArchived)
   };
 }
 

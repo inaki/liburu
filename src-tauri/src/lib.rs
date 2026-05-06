@@ -54,6 +54,15 @@ struct GitFileStatus {
     status: String,
 }
 
+#[derive(Serialize, Clone)]
+struct GitFileHistoryEntry {
+    commit_hash: String,
+    short_hash: String,
+    author_name: String,
+    committed_at: String,
+    summary: String,
+}
+
 #[command]
 fn scan_directory(
     path: String,
@@ -548,6 +557,84 @@ fn get_git_statuses(path: String, exclude_paths: Option<Vec<String>>) -> Result<
 }
 
 #[command]
+fn get_file_history(path: String, state: State<'_, AppState>) -> Result<Vec<GitFileHistoryEntry>, String> {
+    let root = selected_root(&state, "Select a root folder before checking file history")?;
+    let file_path = canonicalize_file(Path::new(&path))?;
+
+    if !file_path.starts_with(&root) {
+        return Err("Refusing to inspect files outside the selected root".to_string());
+    }
+
+    if !is_markdown_path(&file_path) {
+        return Err("Only Markdown files are supported".to_string());
+    }
+
+    let inside_output = Command::new("git")
+        .args(["-C", &root.to_string_lossy(), "rev-parse", "--is-inside-work-tree"])
+        .output()
+        .map_err(|error| format!("Failed to run git: {error}"))?;
+
+    if !inside_output.status.success()
+        || String::from_utf8_lossy(&inside_output.stdout).trim() != "true"
+    {
+        return Ok(Vec::new());
+    }
+
+    let relative_path = file_path
+        .strip_prefix(&root)
+        .map_err(|_| "Failed to compute file path relative to selected root".to_string())?
+        .to_string_lossy()
+        .replace('\\', "/");
+
+    let output = Command::new("git")
+        .args([
+            "-C",
+            &root.to_string_lossy(),
+            "log",
+            "--follow",
+            "--format=%H%x1f%h%x1f%an%x1f%aI%x1f%s",
+            "-n",
+            "8",
+            "--",
+            &relative_path,
+        ])
+        .output()
+        .map_err(|error| format!("Failed to run git log: {error}"))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        return Err(if stderr.is_empty() {
+            "git log failed".to_string()
+        } else {
+            stderr
+        });
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let entries = stdout
+        .lines()
+        .filter_map(|line| {
+            let mut parts = line.split('\x1f');
+            let commit_hash = parts.next()?.trim().to_string();
+            let short_hash = parts.next()?.trim().to_string();
+            let author_name = parts.next()?.trim().to_string();
+            let committed_at = parts.next()?.trim().to_string();
+            let summary = parts.next()?.trim().to_string();
+
+            Some(GitFileHistoryEntry {
+                commit_hash,
+                short_hash,
+                author_name,
+                committed_at,
+                summary,
+            })
+        })
+        .collect();
+
+    Ok(entries)
+}
+
+#[command]
 fn reveal_in_file_manager(path: String) -> Result<(), String> {
     let target = canonicalize_directory(Path::new(&path))?;
 
@@ -783,6 +870,7 @@ pub fn run() {
             get_git_info,
             clone_repository,
             get_git_statuses,
+            get_file_history,
             reveal_in_file_manager,
             open_space_in_terminal
         ])

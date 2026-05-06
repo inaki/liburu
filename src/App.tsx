@@ -5,6 +5,7 @@ import clsx from "clsx";
 import {
   Bookmark,
   CalendarDays,
+  ChevronUp,
   Copy,
   ChevronDown,
   ChevronRight,
@@ -16,6 +17,7 @@ import {
   HelpCircle,
   Info,
   LayoutGrid,
+  Pin,
   Pencil,
   PencilLine,
   Printer,
@@ -27,6 +29,8 @@ import {
   Star,
   TerminalSquare,
   Trash2,
+  Archive,
+  ArchiveRestore,
   UserCircle2,
   Warehouse
 } from "lucide-react";
@@ -88,6 +92,14 @@ type GitFileStatus = {
   status: string;
 };
 
+type GitFileHistoryEntry = {
+  commit_hash: string;
+  short_hash: string;
+  author_name: string;
+  committed_at: string;
+  summary: string;
+};
+
 type RecentNote = {
   path: string;
   relativePath: string;
@@ -143,6 +155,8 @@ type CloneResult = {
   name: string;
 };
 
+type WorkspaceSearchScope = "all" | "current";
+
 const MarkdownPreview = lazy(() => import("./MarkdownPreview"));
 const BOOKMARKS_KEY = "md-project-viewer:bookmarks";
 const RECENT_NOTES_KEY = "md-project-viewer:recent-notes";
@@ -151,7 +165,7 @@ const AUTO_REFRESH_MS = 4000;
 const MAX_RECENT_NOTES = 8;
 const RAIL_WIDTH = 80;
 const DEFAULT_SETTINGS: AppSettings = {
-  theme: "dark",
+  theme: "light",
   showToc: true,
   sourceWrap: true,
   autosave: false,
@@ -221,6 +235,35 @@ function listDirectoryOptions(files: MdFile[]) {
   }
 
   return Array.from(directories).sort((left, right) => left.localeCompare(right));
+}
+
+function highlightParts(text: string, query: string) {
+  const needle = query.trim();
+  if (!needle) {
+    return [{ text, match: false }];
+  }
+
+  const lower = text.toLowerCase();
+  const lowerNeedle = needle.toLowerCase();
+  const parts: Array<{ text: string; match: boolean }> = [];
+  let cursor = 0;
+
+  while (cursor < text.length) {
+    const index = lower.indexOf(lowerNeedle, cursor);
+    if (index === -1) {
+      parts.push({ text: text.slice(cursor), match: false });
+      break;
+    }
+
+    if (index > cursor) {
+      parts.push({ text: text.slice(cursor, index), match: false });
+    }
+
+    parts.push({ text: text.slice(index, index + needle.length), match: true });
+    cursor = index + needle.length;
+  }
+
+  return parts.filter((part) => part.text.length > 0);
 }
 
 function prettifyNoteTitle(path: string) {
@@ -497,6 +540,8 @@ type TreeProps = {
   onToggle: (path: string) => void;
   onSelect: (path: string) => void;
   onFocus: (path: string) => void;
+  onCreateInDirectory: (path: string) => void;
+  onCreateJournalInDirectory: (path: string) => void;
 };
 
 function TreeBranch({
@@ -508,7 +553,9 @@ function TreeBranch({
   focusedPath,
   onToggle,
   onSelect,
-  onFocus
+  onFocus,
+  onCreateInDirectory,
+  onCreateJournalInDirectory
 }: TreeProps) {
   return (
     <>
@@ -520,9 +567,10 @@ function TreeBranch({
 
         if (row.kind === "directory") {
           return (
-            <button
+            <div
               key={row.id}
-              type="button"
+              role="button"
+              tabIndex={-1}
               className={clsx("explorer-row explorer-row-directory", isFocused && "focused")}
               style={indent}
               onClick={() => {
@@ -537,7 +585,33 @@ function TreeBranch({
               )}
               <Folder className="icon explorer-row-icon folder" />
               <span className="explorer-row-label">{row.name}</span>
-            </button>
+              <span className="explorer-row-actions">
+                <button
+                  type="button"
+                  className="row-action-button"
+                  aria-label="Create note in folder"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onCreateInDirectory(row.path);
+                  }}
+                >
+                  <FilePlus2 className="icon" />
+                </button>
+                {row.path === "journal" || row.path.startsWith("journal/") ? (
+                  <button
+                    type="button"
+                    className="row-action-button"
+                    aria-label="Create journal entry in folder"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onCreateJournalInDirectory(row.path);
+                    }}
+                  >
+                    <CalendarDays className="icon" />
+                  </button>
+                ) : null}
+              </span>
+            </div>
           );
         }
 
@@ -584,6 +658,8 @@ export default function App() {
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [workspaceSearchQuery, setWorkspaceSearchQuery] = useState("");
+  const [workspaceSearchScope, setWorkspaceSearchScope] = useState<WorkspaceSearchScope>("all");
+  const [workspaceSearchBookmarksOnly, setWorkspaceSearchBookmarksOnly] = useState(false);
   const [workspaceSearchGroups, setWorkspaceSearchGroups] = useState<WorkspaceSearchGroup[]>([]);
   const [isWorkspaceSearching, setIsWorkspaceSearching] = useState(false);
   const [isLoadingTree, setIsLoadingTree] = useState(false);
@@ -609,6 +685,7 @@ export default function App() {
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
   const [gitInfos, setGitInfos] = useState<Record<string, GitRepoInfo>>({});
   const [gitStatuses, setGitStatuses] = useState<Record<string, string>>({});
+  const [fileHistory, setFileHistory] = useState<GitFileHistoryEntry[]>([]);
   const resizeState = useRef<{ startX: number; startWidth: number } | null>(null);
   const previewScrollRef = useRef<HTMLDivElement | null>(null);
   const hasAutoOpenedActiveSpace = useRef(false);
@@ -620,6 +697,9 @@ export default function App() {
     upsertSpace,
     setActiveSpaceId,
     renameSpace,
+    togglePinned,
+    toggleArchived,
+    moveSpace,
     updateSpaceExcludes,
     removeSpace,
     clearWorkspace
@@ -639,6 +719,21 @@ export default function App() {
   const homeBookmarkedNotes = useMemo(
     () => recentNotes.filter((note) => bookmarks.includes(note.path)).slice(0, 6),
     [bookmarks, recentNotes]
+  );
+  const visibleSpaces = useMemo(
+    () => spaces.filter((space) => !space.isArchived),
+    [spaces]
+  );
+  const archivedSpaces = useMemo(
+    () => spaces.filter((space) => space.isArchived),
+    [spaces]
+  );
+  const orderedVisibleSpaces = useMemo(
+    () => [
+      ...visibleSpaces.filter((space) => space.isPinned),
+      ...visibleSpaces.filter((space) => !space.isPinned)
+    ],
+    [visibleSpaces]
   );
   const activeGitInfo = activeSpaceId ? gitInfos[activeSpaceId] : undefined;
   const activeExcludePaths = activeSpace?.excludePaths ?? DEFAULT_SPACE_EXCLUDES;
@@ -678,6 +773,12 @@ export default function App() {
   }, [activeSpace, rootPath]);
   const isDirty = selectedFile !== null && draftContent !== content;
   const dirtyRelativePath = isDirty ? selectedFile?.relative_path ?? null : null;
+  const workspaceSearchSpaces = useMemo(() => {
+    if (workspaceSearchScope === "current") {
+      return activeSpace ? [activeSpace] : [];
+    }
+    return visibleSpaces;
+  }, [activeSpace, visibleSpaces, workspaceSearchScope]);
 
   useEffect(() => {
     const stored = window.localStorage.getItem(BOOKMARKS_KEY);
@@ -864,6 +965,31 @@ export default function App() {
   }, [activeExcludePaths, rootPath, files.length, content]);
 
   useEffect(() => {
+    if (!selectedFile || !activeGitInfo?.is_repo) {
+      setFileHistory([]);
+      return;
+    }
+
+    let cancelled = false;
+
+    void invoke<GitFileHistoryEntry[]>("get_file_history", { path: selectedFile.path })
+      .then((results) => {
+        if (!cancelled) {
+          setFileHistory(results);
+        }
+      })
+      .catch((historyError) => {
+        if (!cancelled) {
+          setError(historyError instanceof Error ? historyError.message : String(historyError));
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeGitInfo?.is_repo, selectedFile?.path, content]);
+
+  useEffect(() => {
     if (currentView !== "search") {
       return;
     }
@@ -880,7 +1006,7 @@ export default function App() {
       setIsWorkspaceSearching(true);
 
       void Promise.all(
-        spaces.map(async (space) => {
+        workspaceSearchSpaces.map(async (space) => {
           const results = await invoke<SearchResult[]>("search_markdown", {
             path: space.localPath,
             query,
@@ -891,7 +1017,9 @@ export default function App() {
             spaceId: space.id,
             spaceName: getSpaceLabel(space),
             localPath: space.localPath,
-            results
+            results: workspaceSearchBookmarksOnly
+              ? results.filter((result) => bookmarks.includes(result.path))
+              : results
           } satisfies WorkspaceSearchGroup;
         })
       )
@@ -918,7 +1046,7 @@ export default function App() {
       cancelled = true;
       window.clearTimeout(timeoutId);
     };
-  }, [currentView, spaces, workspaceSearchQuery]);
+  }, [bookmarks, currentView, workspaceSearchBookmarksOnly, workspaceSearchQuery, workspaceSearchSpaces]);
 
   useEffect(() => {
     if (spaces.length === 0) {
@@ -1452,6 +1580,41 @@ export default function App() {
     setCurrentView("home");
   }
 
+  function handleCreateNoteInDirectory(path: string) {
+    if (!rootPath) {
+      showNotice("Select a folder first");
+      return;
+    }
+
+    setFocusedPath(path);
+    setNoteDialog({
+      mode: "create",
+      template: "note",
+      title: "Create Note",
+      description: "Create a markdown note directly in the selected folder.",
+      confirmLabel: "Create Note",
+      initialPath: joinNotePath(path, "untitled.md")
+    });
+  }
+
+  function handleCreateJournalInDirectory(path: string) {
+    if (!rootPath) {
+      showNotice("Select a folder first");
+      return;
+    }
+
+    const todayName = splitNotePath(formatTodayPath()).name;
+    setFocusedPath(path);
+    setNoteDialog({
+      mode: "journal",
+      template: "journal",
+      title: "Create Journal Entry",
+      description: "Create a dated journal entry in the selected journal folder.",
+      confirmLabel: "Create Entry",
+      initialPath: joinNotePath(path, todayName)
+    });
+  }
+
   function handleRenameSpace(spaceId: string) {
     const space = spaces.find((item) => item.id === spaceId);
     if (!space) {
@@ -1465,6 +1628,33 @@ export default function App() {
 
     renameSpace(spaceId, nextLabel);
     showNotice("Space label updated");
+  }
+
+  function handleTogglePinnedSpace(spaceId: string) {
+    const space = spaces.find((item) => item.id === spaceId);
+    if (!space) {
+      return;
+    }
+
+    togglePinned(spaceId);
+    showNotice(space.isPinned ? "Space unpinned" : "Space pinned");
+  }
+
+  function handleToggleArchivedSpace(spaceId: string) {
+    const space = spaces.find((item) => item.id === spaceId);
+    if (!space) {
+      return;
+    }
+
+    toggleArchived(spaceId);
+    if (activeSpaceId === spaceId && !space.isArchived) {
+      setCurrentView("home");
+    }
+    showNotice(space.isArchived ? "Space restored" : "Space archived");
+  }
+
+  function handleMoveSpace(spaceId: string, direction: -1 | 1) {
+    moveSpace(spaceId, direction);
   }
 
   function handleRemoveSpace(spaceId: string) {
@@ -2105,6 +2295,8 @@ export default function App() {
                 onToggle={handleToggle}
                 onSelect={handleSelect}
                 onFocus={setFocusedPath}
+                onCreateInDirectory={handleCreateNoteInDirectory}
+                onCreateJournalInDirectory={handleCreateJournalInDirectory}
               />
             ) : activePanel === "bookmarks" ? (
               bookmarkedFiles.length > 0 ? (
@@ -2196,6 +2388,31 @@ export default function App() {
                       <span>Remote</span>
                       <strong>{activeGitInfo.remote_url || "No origin remote"}</strong>
                     </div>
+                    <div className="metadata-item metadata-history">
+                      <span>Recent file history</span>
+                      {selectedFile ? (
+                        fileHistory.length > 0 ? (
+                          <div className="history-list">
+                            {fileHistory.map((entry) => (
+                              <div key={entry.commit_hash} className="history-entry">
+                                <div className="history-entry-topline">
+                                  <strong>{entry.summary}</strong>
+                                  <code>{entry.short_hash}</code>
+                                </div>
+                                <div className="history-entry-meta">
+                                  <span>{entry.author_name}</span>
+                                  <span>{new Date(entry.committed_at).toLocaleString()}</span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <strong>No local commit history for this file yet.</strong>
+                        )
+                      ) : (
+                        <strong>Open a Markdown file to inspect its local git history.</strong>
+                      )}
+                    </div>
                   </>
                 ) : null}
               </div>
@@ -2215,15 +2432,15 @@ export default function App() {
         <div className="recent-roots-panel">
           <div className="recent-roots-header">
             <span>Spaces</span>
-            {spaces.length > 0 ? (
+            {visibleSpaces.length > 0 ? (
               <button type="button" className="text-action" onClick={clearAllSpaces}>
                 Clear
               </button>
             ) : null}
           </div>
           <div className="recent-roots-list">
-            {spaces.length > 0 ? (
-              spaces.map((space) => (
+            {orderedVisibleSpaces.length > 0 ? (
+              orderedVisibleSpaces.map((space, index) => (
                 <div
                   key={space.id}
                   className={clsx("recent-root-item", activeSpace?.id === space.id && "active")}
@@ -2233,6 +2450,32 @@ export default function App() {
                     <span className="recent-root-path">{space.localPath}</span>
                   </button>
                   <span className="recent-root-actions">
+                    <button
+                      type="button"
+                      className={clsx("mini-icon-button", space.isPinned && "active")}
+                      aria-label={space.isPinned ? "Unpin space" : "Pin space"}
+                      onClick={() => handleTogglePinnedSpace(space.id)}
+                    >
+                      <Pin className="icon" />
+                    </button>
+                    <button
+                      type="button"
+                      className="mini-icon-button"
+                      aria-label="Move space up"
+                      disabled={index === 0}
+                      onClick={() => handleMoveSpace(space.id, -1)}
+                    >
+                      <ChevronUp className="icon" />
+                    </button>
+                    <button
+                      type="button"
+                      className="mini-icon-button"
+                      aria-label="Move space down"
+                      disabled={index === orderedVisibleSpaces.length - 1}
+                      onClick={() => handleMoveSpace(space.id, 1)}
+                    >
+                      <ChevronDown className="icon" />
+                    </button>
                     <button
                       type="button"
                       className="mini-icon-button"
@@ -2264,6 +2507,14 @@ export default function App() {
                       onClick={() => handleRenameSpace(space.id)}
                     >
                       <PencilLine className="icon" />
+                    </button>
+                    <button
+                      type="button"
+                      className="mini-icon-button"
+                      aria-label={space.isArchived ? "Restore space" : "Archive space"}
+                      onClick={() => handleToggleArchivedSpace(space.id)}
+                    >
+                      <Archive className="icon" />
                     </button>
                     <button
                       type="button"
@@ -2378,8 +2629,8 @@ export default function App() {
                     <strong>{spaces.length}</strong>
                   </div>
                   <div className="home-space-list">
-                    {spaces.length > 0 ? (
-                      spaces.map((space) => (
+                    {orderedVisibleSpaces.length > 0 ? (
+                      orderedVisibleSpaces.map((space, index) => (
                         <div key={space.id} className="home-space-card">
                           <div className="home-space-head">
                             <button
@@ -2393,6 +2644,32 @@ export default function App() {
                               </div>
                             </button>
                             <div className="home-card-actions">
+                              <button
+                                type="button"
+                                className={clsx("mini-icon-button", space.isPinned && "active")}
+                                aria-label={space.isPinned ? "Unpin space" : "Pin space"}
+                                onClick={() => handleTogglePinnedSpace(space.id)}
+                              >
+                                <Pin className="icon" />
+                              </button>
+                              <button
+                                type="button"
+                                className="mini-icon-button"
+                                aria-label="Move space up"
+                                disabled={index === 0}
+                                onClick={() => handleMoveSpace(space.id, -1)}
+                              >
+                                <ChevronUp className="icon" />
+                              </button>
+                              <button
+                                type="button"
+                                className="mini-icon-button"
+                                aria-label="Move space down"
+                                disabled={index === orderedVisibleSpaces.length - 1}
+                                onClick={() => handleMoveSpace(space.id, 1)}
+                              >
+                                <ChevronDown className="icon" />
+                              </button>
                               <button
                                 type="button"
                                 className="mini-icon-button"
@@ -2428,6 +2705,14 @@ export default function App() {
                               <button
                                 type="button"
                                 className="mini-icon-button"
+                                aria-label={space.isArchived ? "Restore space" : "Archive space"}
+                                onClick={() => handleToggleArchivedSpace(space.id)}
+                              >
+                                <Archive className="icon" />
+                              </button>
+                              <button
+                                type="button"
+                                className="mini-icon-button"
                                 aria-label="Remove space"
                                 onClick={() => handleRemoveSpace(space.id)}
                               >
@@ -2440,6 +2725,7 @@ export default function App() {
                               Git repo{gitInfos[space.id]?.branch ? ` • ${gitInfos[space.id]?.branch}` : ""}
                             </div>
                           ) : null}
+                          {space.isPinned ? <div className="home-space-badge home-space-badge-secondary">Pinned</div> : null}
                           <div className="home-space-path">{space.localPath}</div>
                           <div className="home-space-stats">
                             <span>{spaceSummaries[space.id]?.note_count ?? 0} notes</span>
@@ -2456,6 +2742,46 @@ export default function App() {
                       ))
                     ) : (
                       <div className="explorer-empty">Add your first space to start building the workspace.</div>
+                    )}
+                  </div>
+                </section>
+
+                <section className="home-panel">
+                  <div className="home-panel-header">
+                    <span>Archived Spaces</span>
+                    <strong>{archivedSpaces.length}</strong>
+                  </div>
+                  <div className="home-space-list">
+                    {archivedSpaces.length > 0 ? (
+                      archivedSpaces.map((space) => (
+                        <div key={`archived:${space.id}`} className="home-space-card">
+                          <div className="home-space-head">
+                            <button
+                              type="button"
+                              className="home-space-main"
+                              onClick={() => handleOpenSpace(space.localPath)}
+                            >
+                              <div className="home-space-topline">
+                                <Folder className="icon" />
+                                <span>{getSpaceLabel(space)}</span>
+                              </div>
+                            </button>
+                            <div className="home-card-actions">
+                              <button
+                                type="button"
+                                className="mini-icon-button"
+                                aria-label="Restore space"
+                                onClick={() => handleToggleArchivedSpace(space.id)}
+                              >
+                                <ArchiveRestore className="icon" />
+                              </button>
+                            </div>
+                          </div>
+                          <div className="home-space-path">{space.localPath}</div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="explorer-empty">Archived spaces stay here until you restore them.</div>
                     )}
                   </div>
                 </section>
@@ -2554,6 +2880,26 @@ export default function App() {
                 <p className="home-copy">
                   Search every connected space at once, then jump straight into the matching note.
                 </p>
+                <div className="search-filters">
+                  <label className="search-filter">
+                    <span>Scope</span>
+                    <select
+                      value={workspaceSearchScope}
+                      onChange={(event) => setWorkspaceSearchScope(event.target.value as WorkspaceSearchScope)}
+                    >
+                      <option value="all">All spaces</option>
+                      <option value="current">Current space</option>
+                    </select>
+                  </label>
+                  <label className="search-filter-toggle">
+                    <input
+                      type="checkbox"
+                      checked={workspaceSearchBookmarksOnly}
+                      onChange={(event) => setWorkspaceSearchBookmarksOnly(event.target.checked)}
+                    />
+                    <span>Bookmarked notes only</span>
+                  </label>
+                </div>
               </div>
 
               {workspaceSearchQuery.trim() ? (
@@ -2580,13 +2926,31 @@ export default function App() {
                             >
                               <div className="search-result-topline">
                                 <FileText className="icon explorer-row-icon file" />
-                                <span className="search-result-name">{result.relative_path}</span>
+                                <span className="search-result-name">
+                                  {highlightParts(result.relative_path, workspaceSearchQuery).map((part, index) => (
+                                    <mark
+                                      key={`${result.path}:path:${index}`}
+                                      className={clsx("search-highlight", !part.match && "plain")}
+                                    >
+                                      {part.text}
+                                    </mark>
+                                  ))}
+                                </span>
                               </div>
                               <div className="search-result-meta">
                                 {result.matched_on_path ? "Path match" : "Content match"}
                               </div>
                               {result.snippet ? (
-                                <div className="search-result-snippet">{result.snippet}</div>
+                                <div className="search-result-snippet">
+                                  {highlightParts(result.snippet, workspaceSearchQuery).map((part, index) => (
+                                    <mark
+                                      key={`${result.path}:snippet:${index}`}
+                                      className={clsx("search-highlight", !part.match && "plain")}
+                                    >
+                                      {part.text}
+                                    </mark>
+                                  ))}
+                                </div>
                               ) : null}
                             </button>
                           ))}

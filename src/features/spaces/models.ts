@@ -7,6 +7,8 @@ export type Space = {
   kind: SpaceKind;
   localPath: string;
   excludePaths: string[];
+  isPinned?: boolean;
+  isArchived?: boolean;
   lastOpenedAt: string;
   lastIndexedAt?: string;
 };

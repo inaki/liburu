@@ -84,6 +84,54 @@ export function useWorkspace() {
     }));
   }
 
+  function togglePinned(spaceId: string) {
+    setWorkspace((current) => ({
+      spaces: current.spaces.map((space) =>
+        space.id === spaceId
+          ? {
+              ...space,
+              isPinned: !space.isPinned
+            }
+          : space
+      ),
+      activeSpaceId: current.activeSpaceId
+    }));
+  }
+
+  function toggleArchived(spaceId: string) {
+    setWorkspace((current) => ({
+      spaces: current.spaces.map((space) =>
+        space.id === spaceId
+          ? {
+              ...space,
+              isArchived: !space.isArchived,
+              isPinned: space.isArchived ? space.isPinned : false
+            }
+          : space
+      ),
+      activeSpaceId: current.activeSpaceId
+    }));
+  }
+
+  function moveSpace(spaceId: string, direction: -1 | 1) {
+    setWorkspace((current) => {
+      const index = current.spaces.findIndex((space) => space.id === spaceId);
+      const nextIndex = index + direction;
+      if (index === -1 || nextIndex < 0 || nextIndex >= current.spaces.length) {
+        return current;
+      }
+
+      const spaces = [...current.spaces];
+      const [space] = spaces.splice(index, 1);
+      spaces.splice(nextIndex, 0, space);
+
+      return {
+        spaces,
+        activeSpaceId: current.activeSpaceId
+      };
+    });
+  }
+
   function removeSpace(spaceId: string) {
     setWorkspace((current) => {
       const spaces = current.spaces.filter((space) => space.id !== spaceId);
@@ -120,6 +168,9 @@ export function useWorkspace() {
     upsertSpace,
     setActiveSpaceId,
     renameSpace,
+    togglePinned,
+    toggleArchived,
+    moveSpace,
     updateSpaceExcludes,
     removeSpace,
     clearWorkspace
