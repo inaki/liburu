@@ -121,12 +121,19 @@ input {
   border: 1px solid var(--outline-strong);
   border-radius: 6px;
   background: var(--surface-high);
-  color: var(--text);
+  color: var(--indigo);
   font-weight: 700;
+  overflow: hidden;
 }
 
 .rail-brand.active {
   color: var(--indigo);
+}
+
+.rail-brand-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .rail-nav,
@@ -217,7 +224,6 @@ input {
 .explorer-panel {
   display: grid;
   grid-template-rows: auto auto minmax(0, 1fr) auto;
-  border-top: 1px solid var(--outline);
 }
 
 .explorer-panel-header,
@@ -1021,6 +1027,32 @@ input {
   height: 1rem;
 }
 
+.breadcrumb-bookmark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  margin-left: 4px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-dim);
+  transition: color 140ms ease, background-color 140ms ease, transform 140ms ease;
+}
+
+.breadcrumb-bookmark:hover,
+.breadcrumb-bookmark:focus-visible {
+  background: var(--surface-low);
+  color: var(--text);
+  transform: translateY(-1px);
+  outline: none;
+}
+
+.breadcrumb-bookmark.active {
+  color: var(--indigo);
+}
+
 .design-empty-hero {
   display: grid;
   align-content: start;
@@ -1661,7 +1693,40 @@ input {
 }
 
 .settings-toolbar-icon-selected svg {
+  color: #fff;
   stroke: currentColor;
+}
+
+.settings-brand-preview {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border: 1px solid var(--outline);
+  border-radius: 12px;
+  background: var(--surface-low);
+  color: var(--indigo);
+  overflow: hidden;
+  transition: border-color 140ms ease, background-color 140ms ease, transform 140ms ease;
+}
+
+.settings-brand-preview:hover,
+.settings-brand-preview:focus-visible {
+  border-color: var(--outline-strong);
+  background: var(--surface-lowest);
+  transform: translateY(-1px);
+  outline: none;
+}
+
+.settings-brand-preview .icon {
+  width: 1.2rem;
+  height: 1.2rem;
+}
+
+.settings-brand-preview-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .settings-toggle-compact {

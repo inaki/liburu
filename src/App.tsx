@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import clsx from "clsx";
@@ -20,12 +20,12 @@ import {
   Pin,
   Pencil,
   PencilLine,
+  PenTool,
   Printer,
   RefreshCw,
   Search,
   Settings,
   Share2,
-  SquareTerminal,
   Star,
   TerminalSquare,
   Trash2,
@@ -135,6 +135,7 @@ type RecentNote = {
 
 type AppSettings = {
   theme: "dark" | "light";
+  brandLogoDataUrl: string;
   showToc: boolean;
   sourceWrap: boolean;
   autosave: boolean;
@@ -205,6 +206,7 @@ const RAIL_WIDTH = 80;
 const SIDEBAR_WIDTH = 350;
 const DEFAULT_SETTINGS: AppSettings = {
   theme: "light",
+  brandLogoDataUrl: "",
   showToc: true,
   sourceWrap: true,
   autosave: false,
@@ -754,6 +756,7 @@ export default function App() {
   const [noteNameInput, setNoteNameInput] = useState("");
   const [excludePathsInput, setExcludePathsInput] = useState("");
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
+  const brandLogoInputRef = useRef<HTMLInputElement | null>(null);
   const [gitInfos, setGitInfos] = useState<Record<string, GitRepoInfo>>({});
   const [gitStatuses, setGitStatuses] = useState<Record<string, string>>({});
   const [fileHistory, setFileHistory] = useState<GitFileHistoryEntry[]>([]);
@@ -1554,6 +1557,24 @@ export default function App() {
     setSettings((current) => ({ ...current, ...patch }));
   }
 
+  function handlePickBrandLogo() {
+    brandLogoInputRef.current?.click();
+  }
+
+  function handleBrandLogoSelected(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) {
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      updateSettings({ brandLogoDataUrl: typeof reader.result === "string" ? reader.result : "" });
+      showNotice("Custom logo updated");
+    };
+    reader.readAsDataURL(file);
+    event.target.value = "";
+  }
+
   function moveFocus(direction: -1 | 1) {
     if (visibleRows.length === 0) {
       return;
@@ -2132,7 +2153,11 @@ export default function App() {
           data-tooltip="Workspace Home"
           onClick={handleOpenHome}
         >
-          <SquareTerminal className="icon" />
+          {settings.brandLogoDataUrl ? (
+            <img src={settings.brandLogoDataUrl} alt="App logo" className="rail-brand-image" />
+          ) : (
+            <PenTool className="icon" />
+          )}
         </button>
         <nav className="rail-nav">
           <button
@@ -2872,17 +2897,6 @@ export default function App() {
                 >
                   <Trash2 className="icon" />
                 </button> : null}
-                {settings.toolbar.bookmark ? <button
-                  type="button"
-                  className={clsx("icon-button", selectedFile && bookmarks.includes(selectedFile.path) && "toggled")}
-                  aria-label="Bookmark"
-                  onClick={() => toggleBookmark(selectedFile)}
-                >
-                  <Star
-                    className="icon"
-                    fill={selectedFile && bookmarks.includes(selectedFile.path) ? "currentColor" : "none"}
-                  />
-                </button> : null}
                 {settings.toolbar.settings ? <button
                   type="button"
                   className="icon-button"
@@ -2908,6 +2922,22 @@ export default function App() {
                         <Warehouse className="icon" />
                         <span>/</span>
                         <span>{selectedFile.relative_path}</span>
+                        {settings.toolbar.bookmark ? (
+                          <button
+                            type="button"
+                            className={clsx(
+                              "breadcrumb-bookmark",
+                              bookmarks.includes(selectedFile.path) && "active"
+                            )}
+                            aria-label="Bookmark"
+                            onClick={() => toggleBookmark(selectedFile)}
+                          >
+                            <Star
+                              className="icon"
+                              fill={bookmarks.includes(selectedFile.path) ? "currentColor" : "none"}
+                            />
+                          </button>
+                        ) : null}
                       </div>
                       {viewMode === "preview" ? (
                         <Suspense fallback={<div className="design-empty-state">Rendering preview…</div>}>
@@ -3109,6 +3139,50 @@ export default function App() {
                     <SelectItem value="dark">Dark</SelectItem>
                   </SelectContent>
                 </Select>
+              </div>
+
+              <div className="settings-field">
+                <span>Brand logo</span>
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    className="settings-brand-preview"
+                    onClick={handlePickBrandLogo}
+                    aria-label="Choose custom brand logo"
+                  >
+                    {settings.brandLogoDataUrl ? (
+                      <img
+                        src={settings.brandLogoDataUrl}
+                        alt="Selected brand logo"
+                        className="settings-brand-preview-image"
+                      />
+                    ) : (
+                      <PenTool className="icon" />
+                    )}
+                  </button>
+                  <div className="flex flex-wrap gap-2">
+                    <Button type="button" variant="secondary" onClick={handlePickBrandLogo}>
+                      Upload logo
+                    </Button>
+                    {settings.brandLogoDataUrl ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => updateSettings({ brandLogoDataUrl: "" })}
+                      >
+                        Reset
+                      </Button>
+                    ) : null}
+                  </div>
+                </div>
+                <small>Uses a simple pen icon by default. Upload a square logo to personalize the rail brand.</small>
+                <input
+                  ref={brandLogoInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="sr-only"
+                  onChange={handleBrandLogoSelected}
+                />
               </div>
 
               <div className="settings-field">
