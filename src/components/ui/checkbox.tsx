@@ -1,6 +1,6 @@
 import * as React from "react";
 import * as CheckboxPrimitive from "@radix-ui/react-checkbox";
-import { Check } from "lucide-react";
+import { CheckIcon } from "lucide-react";
 import { cn } from "../../lib/utils";
 
 type CheckboxProps = React.ComponentPropsWithoutRef<typeof CheckboxPrimitive.Root>;
@@ -12,13 +12,13 @@ const Checkbox = React.forwardRef<
   <CheckboxPrimitive.Root
     ref={ref}
     className={cn(
-      "peer relative flex h-4 w-4 shrink-0 items-center justify-center overflow-hidden rounded-[4px] border border-[var(--outline)] bg-[var(--surface-low)] text-[var(--indigo)] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[color:var(--indigo-soft)]/35 disabled:cursor-not-allowed disabled:opacity-50 data-[state=checked]:border-[color:var(--indigo)] data-[state=checked]:bg-[color:var(--indigo)] data-[state=checked]:text-white",
+      "peer inline-flex h-4 w-4 shrink-0 appearance-none items-center justify-center rounded-[4px] border border-[var(--outline)] bg-[var(--surface-low)] p-0 align-middle leading-none text-[color:var(--text-muted)] shadow-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[color:var(--indigo-soft)]/35 disabled:cursor-not-allowed disabled:opacity-50 data-[state=checked]:border-[color:var(--indigo)] data-[state=checked]:bg-[color:var(--indigo)] data-[state=checked]:text-white",
       className
     )}
     {...props}
   >
-    <CheckboxPrimitive.Indicator className="flex h-full w-full items-center justify-center text-current">
-      <Check className="h-3 w-3" strokeWidth={3} />
+    <CheckboxPrimitive.Indicator className="inline-flex items-center justify-center text-white">
+      <CheckIcon className="h-3.5 w-3.5" />
     </CheckboxPrimitive.Indicator>
   </CheckboxPrimitive.Root>
 ));
