@@ -178,21 +178,21 @@ export function SecondarySidebar({
                         selectedFilePath === result.path && "selected"
                       )}
                     onClick={() => onSelect(result.relative_path)}
-                    >
-                      <div className="flex min-w-0 items-center gap-2.5">
-                        <FileText className="icon h-4 w-4 shrink-0 text-[color:var(--indigo-soft)]" />
-                        <span className="overflow-hidden text-ellipsis whitespace-nowrap text-[0.83rem] font-semibold">
-                          {result.relative_path}
-                        </span>
+                  >
+                    <div className="flex min-w-0 items-center gap-2.5">
+                      <FileText className="icon h-4 w-4 shrink-0 text-[color:var(--indigo-soft)]" />
+                      <span className="overflow-hidden text-ellipsis whitespace-nowrap text-[0.83rem] font-semibold">
+                        {result.relative_path}
+                      </span>
+                  </div>
+                  <div className="text-[0.7rem] uppercase tracking-[0.06em] text-[color:var(--text-muted)]">
+                    {result.matched_on_path ? "Path match" : "Content match"}
+                  </div>
+                  {result.snippet ? (
+                    <div className="text-[0.8rem] leading-[1.5] text-[color:var(--text-muted)]">
+                      {result.snippet}
                     </div>
-                    <div className="text-[0.7rem] uppercase tracking-[0.06em] text-[color:var(--text-muted)]">
-                      {result.matched_on_path ? "Path match" : "Content match"}
-                    </div>
-                    {result.snippet ? (
-                      <div className="text-[0.8rem] leading-[1.5] text-[color:var(--text-muted)]">
-                        {result.snippet}
-                      </div>
-                    ) : null}
+                  ) : null}
                   </button>
                 ))}
               </div>
