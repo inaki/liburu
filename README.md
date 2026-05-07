@@ -1,4 +1,8 @@
-# Markdown Project Viewer
+<p align="center">
+  <img src="./assets/logo-small.svg" alt="Liburu logo" width="84" />
+</p>
+
+# Liburu
 
 A lightweight desktop app for browsing Markdown documentation inside real project folders.
 
@@ -75,14 +79,63 @@ This launches the desktop app with the Vite frontend and live reload.
 ### Build The App
 
 ```bash
-npm run tauri build -- --debug
+npm run tauri build
 ```
 
-For the current setup, the generated macOS app bundle is written under:
+For local macOS release builds, the generated app bundle is written under:
 
 ```bash
-src-tauri/target/debug/bundle/macos/
+src-tauri/target/release/bundle/macos/
 ```
+
+## macOS Release Distribution
+
+If you want to share the app through GitHub Releases without joining the Apple Developer Program yet, the practical release artifact is a zipped `.app`.
+
+Current macOS release artifacts:
+
+```bash
+src-tauri/target/release/bundle/macos/Liburu.app
+src-tauri/target/release/bundle/macos/Liburu-macOS.zip
+```
+
+### Recommended GitHub Release Upload
+
+Upload:
+
+- `Liburu-macOS.zip`
+
+This is the easiest unsigned macOS artifact for users to download and install.
+
+### Unsigned macOS Notice
+
+This app is currently:
+
+- unsigned
+- not notarized
+
+That means macOS will show a security warning on first launch.
+
+### First Launch Instructions For Users
+
+1. Download `Liburu-macOS.zip`
+2. Unzip it
+3. Move `Liburu.app` into `Applications`
+4. Right-click the app and choose `Open`
+5. Confirm the security prompt
+
+After the first successful launch, users can open it normally.
+
+### Why This Happens
+
+GitHub Releases are fine for distributing the app, but without Apple code signing and notarization macOS Gatekeeper treats it as an unverified application.
+
+You do **not** need the Apple Developer Program to publish the app publicly.
+You **do** need it later if you want:
+
+- proper code signing
+- notarization
+- a smoother install/open experience for end users
 
 ## Project Structure
 
@@ -127,6 +180,7 @@ This app is local-first.
 - Full-text search across Markdown content
 - Better export formats
 - Packaging polish for all desktop targets
+- Signed and notarized macOS builds later
 - Stronger accessibility pass
 - Optional multi-root workspace support
 

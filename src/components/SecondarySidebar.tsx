@@ -105,6 +105,17 @@ export function SecondarySidebar({
   isAutoRefreshing,
   TreeBranch
 }: SecondarySidebarProps) {
+  const contentFadeKey = [
+    activePanel,
+    searchQuery.trim(),
+    isSearching ? "searching" : "idle",
+    activePanel === "explorer" && searchQuery.trim()
+      ? searchResults.length
+      : activePanel === "bookmarks"
+        ? bookmarkedFiles.length
+        : visibleRows.length,
+  ].join(":");
+
   return (
     <aside className="grid min-h-0 min-w-0 grid-rows-[minmax(0,1fr)] border-r border-[color:var(--outline)] bg-[color:var(--surface-low)]">
       <section className="grid min-h-0 grid-rows-[auto_auto_minmax(0,1fr)_auto]">
@@ -164,94 +175,96 @@ export function SecondarySidebar({
           aria-label="Markdown files"
           onKeyDown={onTreeKeyDown}
         >
-          {activePanel === "explorer" && searchQuery.trim() ? (
-            isSearching ? (
-              <div className="explorer-empty">Searching notes…</div>
-            ) : searchResults.length > 0 ? (
-              <div className="grid gap-2.5 px-0 pb-[14px]">
-                {searchResults.map((result) => (
-                  <button
-                    key={result.path}
-                    type="button"
-                      className={clsx(
-                        "grid w-full gap-1.5 rounded-[10px] border border-[color:var(--outline)] bg-[color:var(--surface-lowest)] p-3 text-left text-[color:var(--text)] transition-colors hover:bg-[color:var(--surface-high)]",
-                        selectedFilePath === result.path && "selected"
-                      )}
-                    onClick={() => onSelect(result.relative_path)}
-                  >
-                    <div className="flex min-w-0 items-center gap-2.5">
-                      <FileText className="icon h-4 w-4 shrink-0 text-[color:var(--indigo-soft)]" />
-                      <span className="overflow-hidden text-ellipsis whitespace-nowrap text-[0.83rem] font-semibold">
-                        {result.relative_path}
-                      </span>
-                  </div>
-                  <div className="text-[0.7rem] uppercase tracking-[0.06em] text-[color:var(--text-muted)]">
-                    {result.matched_on_path ? "Path match" : "Content match"}
-                  </div>
-                  {result.snippet ? (
-                    <div className="text-[0.8rem] leading-[1.5] text-[color:var(--text-muted)]">
-                      {result.snippet}
+          <div key={contentFadeKey} className="animate-[sidebarFade_120ms_ease-out]">
+            {activePanel === "explorer" && searchQuery.trim() ? (
+              isSearching ? (
+                <div className="explorer-empty">Searching notes…</div>
+              ) : searchResults.length > 0 ? (
+                <div className="grid gap-2.5 px-0 pb-[14px]">
+                  {searchResults.map((result) => (
+                    <button
+                      key={result.path}
+                      type="button"
+                        className={clsx(
+                          "grid w-full gap-1.5 rounded-[10px] border border-[color:var(--outline)] bg-[color:var(--surface-lowest)] p-3 text-left text-[color:var(--text)] transition-colors hover:bg-[color:var(--surface-high)]",
+                          selectedFilePath === result.path && "selected"
+                        )}
+                      onClick={() => onSelect(result.relative_path)}
+                    >
+                      <div className="flex min-w-0 items-center gap-2.5">
+                        <FileText className="icon h-4 w-4 shrink-0 text-[color:var(--indigo-soft)]" />
+                        <span className="overflow-hidden text-ellipsis whitespace-nowrap text-[0.83rem] font-semibold">
+                          {result.relative_path}
+                        </span>
                     </div>
-                  ) : null}
-                  </button>
-                ))}
-              </div>
-            ) : (
-              <div className="explorer-empty">No notes matched this search.</div>
-            )
-          ) : activePanel === "explorer" && files.length > 0 ? (
-            <TreeBranch
-              rows={visibleRows}
-              gitStatuses={gitStatuses}
-              dirtyPath={dirtyRelativePath}
-              expanded={expanded}
-              selectedPath={selectedRelativePath}
-              focusedPath={focusedPath}
-              onToggle={onToggle}
-              onSelect={onSelect}
-              onFocus={onFocus}
-              onCreateInDirectory={onCreateInDirectory}
-              onCreateJournalInDirectory={onCreateJournalInDirectory}
-            />
-          ) : activePanel === "bookmarks" ? (
-            bookmarkedFiles.length > 0 ? (
-              bookmarkedFiles.map((file) => (
-                <button
-                  key={file.path}
-                  type="button"
-                  className={clsx(
-                    "flex min-h-[var(--row-height)] w-full items-center gap-2.5 rounded-r-[6px] bg-transparent px-[var(--panel-padding)] py-1.5 text-left text-[color:var(--text-muted)] transition-colors hover:bg-[color:var(--surface-high)] hover:text-[color:var(--text)]",
-                    selectedFilePath === file.path &&
-                      "bg-[color:color-mix(in_srgb,var(--surface-highest)_88%,transparent)] text-[color:var(--text)] shadow-[inset_2px_0_0_var(--indigo)]"
-                  )}
-                  onClick={() => onSelect(file.relative_path)}
-                >
-                  <span className="h-4 w-4 shrink-0" />
-                  <Bookmark className="icon h-4 w-4 shrink-0 text-[color:var(--indigo-soft)]" />
-                  <span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">
-                    {file.relative_path}
-                  </span>
-                  {dirtyRelativePath === file.relative_path ? (
-                    <span
-                      className="h-2 w-2 shrink-0 rounded-full bg-[color:var(--indigo-soft)] shadow-[0_0_0_2px_color-mix(in_srgb,var(--indigo-soft)_20%,transparent)]"
-                      aria-label="Unsaved changes"
-                    />
-                  ) : null}
-                  {gitStatuses[file.relative_path] ? (
-                    <span className={getGitStatusBadgeClass(gitStatuses[file.relative_path])}>
-                      {gitStatuses[file.relative_path]}
+                    <div className="text-[0.7rem] uppercase tracking-[0.06em] text-[color:var(--text-muted)]">
+                      {result.matched_on_path ? "Path match" : "Content match"}
+                    </div>
+                    {result.snippet ? (
+                      <div className="text-[0.8rem] leading-[1.5] text-[color:var(--text-muted)]">
+                        {result.snippet}
+                      </div>
+                    ) : null}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div className="explorer-empty">No notes matched this search.</div>
+              )
+            ) : activePanel === "explorer" && files.length > 0 ? (
+              <TreeBranch
+                rows={visibleRows}
+                gitStatuses={gitStatuses}
+                dirtyPath={dirtyRelativePath}
+                expanded={expanded}
+                selectedPath={selectedRelativePath}
+                focusedPath={focusedPath}
+                onToggle={onToggle}
+                onSelect={onSelect}
+                onFocus={onFocus}
+                onCreateInDirectory={onCreateInDirectory}
+                onCreateJournalInDirectory={onCreateJournalInDirectory}
+              />
+            ) : activePanel === "bookmarks" ? (
+              bookmarkedFiles.length > 0 ? (
+                bookmarkedFiles.map((file) => (
+                  <button
+                    key={file.path}
+                    type="button"
+                    className={clsx(
+                      "flex min-h-[var(--row-height)] w-full items-center gap-2.5 rounded-r-[6px] bg-transparent px-[var(--panel-padding)] py-1.5 text-left text-[color:var(--text-muted)] transition-colors hover:bg-[color:var(--surface-high)] hover:text-[color:var(--text)]",
+                      selectedFilePath === file.path &&
+                        "bg-[color:color-mix(in_srgb,var(--surface-highest)_88%,transparent)] text-[color:var(--text)] shadow-[inset_2px_0_0_var(--indigo)]"
+                    )}
+                    onClick={() => onSelect(file.relative_path)}
+                  >
+                    <span className="h-4 w-4 shrink-0" />
+                    <Bookmark className="icon h-4 w-4 shrink-0 text-[color:var(--indigo-soft)]" />
+                    <span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">
+                      {file.relative_path}
                     </span>
-                  ) : null}
-                </button>
-              ))
+                    {dirtyRelativePath === file.relative_path ? (
+                      <span
+                        className="h-2 w-2 shrink-0 rounded-full bg-[color:var(--indigo-soft)] shadow-[0_0_0_2px_color-mix(in_srgb,var(--indigo-soft)_20%,transparent)]"
+                        aria-label="Unsaved changes"
+                      />
+                    ) : null}
+                    {gitStatuses[file.relative_path] ? (
+                      <span className={getGitStatusBadgeClass(gitStatuses[file.relative_path])}>
+                        {gitStatuses[file.relative_path]}
+                      </span>
+                    ) : null}
+                  </button>
+                ))
+              ) : (
+                <div className="explorer-empty">Bookmark a file to keep it here.</div>
+              )
             ) : (
-              <div className="explorer-empty">Bookmark a file to keep it here.</div>
-            )
-          ) : (
-            <div className="explorer-empty">
-              {isLoadingTree ? "Scanning project…" : "No Markdown files loaded yet."}
-            </div>
-          )}
+              <div className="explorer-empty">
+                {isLoadingTree ? "Scanning project…" : "No Markdown files loaded yet."}
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="flex justify-between gap-2.5 border-t border-[color:var(--outline)] px-4 py-3 text-[0.72rem] text-[color:var(--text-muted)]">

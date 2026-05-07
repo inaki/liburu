@@ -1670,6 +1670,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "liburu"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "serde",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-dialog",
+ "walkdir",
+]
+
+[[package]]
 name = "litemap"
 version = "0.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1699,18 +1711,6 @@ dependencies = [
  "log",
  "tendril",
  "web_atoms",
-]
-
-[[package]]
-name = "md-project-viewer"
-version = "0.1.0"
-dependencies = [
- "chrono",
- "serde",
- "tauri",
- "tauri-build",
- "tauri-plugin-dialog",
- "walkdir",
 ]
 
 [[package]]

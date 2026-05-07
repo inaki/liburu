@@ -16,7 +16,6 @@ import {
   LayoutGrid,
   Pencil,
   PencilLine,
-  PenTool,
   Printer,
   RefreshCw,
   Settings,
@@ -24,6 +23,7 @@ import {
   Trash2,
   UserCircle2,
 } from "lucide-react";
+import { AppLogo } from "./components/AppLogo";
 import { CloneDialog } from "./components/CloneDialog";
 import { DocumentWorkspace } from "./components/DocumentWorkspace";
 import { NoteDialog } from "./components/NoteDialog";
@@ -2210,9 +2210,9 @@ export default function App() {
                 onClick={handleOpenHome}
               >
                 {settings.brandLogoDataUrl ? (
-                  <img src={settings.brandLogoDataUrl} alt="App logo" className="h-8 w-8 object-contain" />
+                  <img src={settings.brandLogoDataUrl} alt="App logo" className="h-10 w-10 object-contain" />
                 ) : (
-                  <PenTool className="icon h-8 w-8" />
+                  <AppLogo className="h-10 w-10" />
                 )}
               </button>
             </TooltipTrigger>
@@ -2345,7 +2345,7 @@ export default function App() {
 
       <div className="grid min-h-0 min-w-0 grid-rows-[56px_minmax(0,1fr)] overflow-hidden">
         <Topbar
-          title={currentView === "home" ? "Workspace Home" : "Markdown Viewer"}
+          title={currentView === "home" ? "Workspace Home" : "Liburu"}
           searchValue={searchQuery}
           searchPlaceholder="Search files..."
           onSearchChange={setSearchQuery}

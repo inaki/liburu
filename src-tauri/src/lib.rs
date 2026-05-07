@@ -1116,7 +1116,7 @@ pub fn run() {
         ])
         .setup(|app| {
             if let Some(window) = app.get_webview_window("main") {
-                let _ = window.set_title("Markdown Project Viewer");
+                let _ = window.set_title("Liburu");
             }
             Ok(())
         })

@@ -1,5 +1,6 @@
 import clsx from "clsx";
-import { PenTool, type LucideIcon } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
+import { AppLogo } from "./AppLogo";
 import { Button } from "./ui/button";
 import { Checkbox } from "./ui/checkbox";
 import {
@@ -135,7 +136,7 @@ export function SettingsDialog({
                       className="h-full w-full object-cover"
                     />
                   ) : (
-                    <PenTool className="icon h-[1.2rem] w-[1.2rem]" />
+                    <AppLogo className="h-[1.35rem] w-[1.35rem]" />
                   )}
                 </button>
                 <div className="flex flex-wrap gap-2">
@@ -154,7 +155,7 @@ export function SettingsDialog({
                 </div>
               </div>
               <small className="text-[0.78rem] leading-[1.5] text-[color:var(--text-muted)]">
-                Uses a simple pen icon by default. Upload a square logo to personalize the rail brand.
+                Uses the built-in journal mark by default. Upload a square logo to personalize the rail brand.
               </small>
               <input
                 ref={brandLogoInputRef}

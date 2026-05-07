@@ -1,5 +1,5 @@
 [package]
-name = "md-project-viewer"
+name = "liburu"
 version = "0.1.0"
 description = "Lightweight local Markdown project viewer"
 authors = ["Codex"]
