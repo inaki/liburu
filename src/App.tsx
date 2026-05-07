@@ -30,6 +30,7 @@ import { NoteDialog } from "./components/NoteDialog";
 import { SecondarySidebar } from "./components/SecondarySidebar";
 import { SettingsDialog } from "./components/SettingsDialog";
 import { Topbar, topbarShareIcons } from "./components/Topbar";
+import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "./components/ui/resizable";
 import { WorkspaceHome } from "./components/WorkspaceHome";
 import { Input } from "./components/ui/input";
 import { Label } from "./components/ui/label";
@@ -108,6 +109,7 @@ type AppSettings = {
   sourceWrap: boolean;
   autosave: boolean;
   autoRefreshMs: number;
+  sidebarSize: number;
   toolbar: {
     save: boolean;
     createNote: boolean;
@@ -168,7 +170,6 @@ const SETTINGS_KEY = "md-project-viewer:settings";
 const AUTO_REFRESH_MS = 4000;
 const MAX_RECENT_NOTES = 8;
 const RAIL_WIDTH = 80;
-const SIDEBAR_WIDTH = 350;
 const DEFAULT_SETTINGS: AppSettings = {
   theme: "light",
   brandLogoDataUrl: "",
@@ -176,6 +177,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   sourceWrap: true,
   autosave: false,
   autoRefreshMs: AUTO_REFRESH_MS,
+  sidebarSize: 26,
   toolbar: {
     save: true,
     createNote: true,
@@ -1544,6 +1546,24 @@ export default function App() {
     setSettings((current) => ({ ...current, ...patch }));
   }
 
+  function handleSidebarLayoutChange(layout: Record<string, number>) {
+    const nextSidebarSize = layout.sidebar;
+    if (typeof nextSidebarSize !== "number" || Number.isNaN(nextSidebarSize)) {
+      return;
+    }
+
+    setSettings((current) => {
+      if (Math.abs(current.sidebarSize - nextSidebarSize) < 0.1) {
+        return current;
+      }
+
+      return {
+        ...current,
+        sidebarSize: nextSidebarSize
+      };
+    });
+  }
+
   function handlePickBrandLogo() {
     brandLogoInputRef.current?.click();
   }
@@ -2197,11 +2217,7 @@ export default function App() {
   return (
     <div
       className="app-shell grid h-screen overflow-hidden bg-[color:var(--bg)] max-[960px]:grid-cols-[1fr] max-[960px]:[&>.app-rail]:hidden"
-      style={{
-        gridTemplateColumns: showSecondarySidebar
-          ? `${RAIL_WIDTH}px ${SIDEBAR_WIDTH}px minmax(0, 1fr)`
-          : `${RAIL_WIDTH}px minmax(0, 1fr)`
-      }}
+      style={{ gridTemplateColumns: `${RAIL_WIDTH}px minmax(0, 1fr)` }}
     >
       <TooltipProvider delayDuration={150}>
         <aside className="app-rail flex flex-col items-center justify-between border-r border-[color:var(--outline)] bg-[color:var(--surface-low)] px-0 pb-5 pt-[18px]">
@@ -2317,50 +2333,122 @@ export default function App() {
       </TooltipProvider>
 
       {showSecondarySidebar ? (
-        <SecondarySidebar
-          rootPath={rootPath}
-          activePanel={activePanel}
-          searchQuery={searchQuery}
-          onSearchQueryChange={setSearchQuery}
-          isLoadingTree={isLoadingTree}
-          isSearching={isSearching}
-          searchResults={searchResults}
-          files={files}
-          bookmarkedFiles={bookmarkedFiles}
-          selectedFilePath={selectedFile?.path ?? null}
-          selectedRelativePath={selectedFile?.relative_path ?? null}
-          focusedPath={focusedPath}
-          dirtyRelativePath={dirtyRelativePath}
-          gitStatuses={gitStatuses}
-          visibleRows={visibleRows}
-          expanded={expanded}
-          onToggle={handleToggle}
-          onSelect={handleSelect}
-          onFocus={setFocusedPath}
-          onTreeKeyDown={handleTreeKeyDown}
-          onCreateJournalEntry={handleCreateJournalEntry}
-          onCreateNote={handleCreateNote}
-          onRefreshScan={() => scanRoot(rootPath, { preserveSelection: true, resetSearch: false })}
-          onCreateInDirectory={handleCreateNoteInDirectory}
-          onCreateJournalInDirectory={handleCreateJournalInDirectory}
-          isAutoRefreshing={isAutoRefreshing}
-          TreeBranch={TreeBranch}
-        />
-      ) : null}
+        <ResizablePanelGroup
+          orientation="horizontal"
+          className="min-h-0 min-w-0"
+          onLayoutChanged={handleSidebarLayoutChange}
+        >
+          <ResizablePanel
+            id="sidebar"
+            defaultSize={`${settings.sidebarSize}%`}
+            minSize="18%"
+            maxSize="38%"
+            className="min-w-[260px]"
+          >
+            <SecondarySidebar
+              rootPath={rootPath}
+              activePanel={activePanel}
+              searchQuery={searchQuery}
+              onSearchQueryChange={setSearchQuery}
+              isLoadingTree={isLoadingTree}
+              isSearching={isSearching}
+              searchResults={searchResults}
+              files={files}
+              bookmarkedFiles={bookmarkedFiles}
+              selectedFilePath={selectedFile?.path ?? null}
+              selectedRelativePath={selectedFile?.relative_path ?? null}
+              focusedPath={focusedPath}
+              dirtyRelativePath={dirtyRelativePath}
+              gitStatuses={gitStatuses}
+              visibleRows={visibleRows}
+              expanded={expanded}
+              onToggle={handleToggle}
+              onSelect={handleSelect}
+              onFocus={setFocusedPath}
+              onTreeKeyDown={handleTreeKeyDown}
+              onCreateJournalEntry={handleCreateJournalEntry}
+              onCreateNote={handleCreateNote}
+              onRefreshScan={() => scanRoot(rootPath, { preserveSelection: true, resetSearch: false })}
+              onCreateInDirectory={handleCreateNoteInDirectory}
+              onCreateJournalInDirectory={handleCreateJournalInDirectory}
+              isAutoRefreshing={isAutoRefreshing}
+              TreeBranch={TreeBranch}
+            />
+          </ResizablePanel>
+          <ResizableHandle withHandle />
+          <ResizablePanel id="content" minSize="45%">
+            <div className="grid min-h-0 min-w-0 grid-rows-[56px_minmax(0,1fr)] overflow-hidden">
+              <Topbar
+                title="Liburu"
+                searchValue={searchQuery}
+                searchPlaceholder="Search files..."
+                onSearchChange={setSearchQuery}
+                onRefresh={handleRefreshCurrent}
+                shareActions={topbarShareActions}
+                onProfile={() => showNotice("Local-only desktop viewer")}
+              />
 
-      <div className="grid min-h-0 min-w-0 grid-rows-[56px_minmax(0,1fr)] overflow-hidden">
-        <Topbar
-          title={currentView === "home" ? "Workspace Home" : "Liburu"}
-          searchValue={searchQuery}
-          searchPlaceholder="Search files..."
-          onSearchChange={setSearchQuery}
-          onRefresh={handleRefreshCurrent}
-          shareActions={topbarShareActions}
-          onProfile={() => showNotice("Local-only desktop viewer")}
-        />
+              <main className="min-h-0 min-w-0 overflow-hidden">
+                <DocumentWorkspace
+                  viewMode={viewMode}
+                  onSetViewMode={setViewMode}
+                  selectedFile={selectedFile}
+                  isDirty={isDirty}
+                  isSavingFile={isSavingFile}
+                  autosave={settings.autosave}
+                  toolbar={settings.toolbar}
+                  documentPanel={documentPanel}
+                  onSave={handleSaveCurrentFile}
+                  onCreateNote={handleCreateNote}
+                  onCreateJournal={handleCreateJournalEntry}
+                  onRename={handleRenameCurrentFile}
+                  onPrint={handlePrint}
+                  onDownload={handleDownload}
+                  onToggleMetadata={() =>
+                    setDocumentPanel((current) => (current === "metadata" ? "toc" : "metadata"))
+                  }
+                  onDelete={handleDeleteCurrentFile}
+                  onOpenSettings={() => setIsSettingsOpen(true)}
+                  error={error}
+                  isLoadingFile={isLoadingFile}
+                  previewScrollRef={previewScrollRef}
+                  settingsShowToc={settings.showToc}
+                  settingsSourceWrap={settings.sourceWrap}
+                  headings={headings}
+                  onScrollToHeading={scrollToHeading}
+                  projectName={projectName}
+                  rootPath={rootPath}
+                  activeExcludePaths={activeExcludePaths}
+                  fileCount={files.length}
+                  bookmarkCount={bookmarkedFiles.length}
+                  gitStatuses={gitStatuses}
+                  frontmatter={frontmatter}
+                  prettifyNoteTitle={prettifyNoteTitle}
+                  activeGitInfo={activeGitInfo}
+                  fileHistory={fileHistory}
+                  bookmarks={bookmarks}
+                  onToggleBookmark={toggleBookmark}
+                  draftContent={draftContent}
+                  onDraftContentChange={setDraftContent}
+                  onShowNotice={showNotice}
+                />
+              </main>
+            </div>
+          </ResizablePanel>
+        </ResizablePanelGroup>
+      ) : (
+        <div className="grid min-h-0 min-w-0 grid-rows-[56px_minmax(0,1fr)] overflow-hidden">
+          <Topbar
+            title="Workspace Home"
+            searchValue={searchQuery}
+            searchPlaceholder="Search files..."
+            onSearchChange={setSearchQuery}
+            onRefresh={handleRefreshCurrent}
+            shareActions={topbarShareActions}
+            onProfile={() => showNotice("Local-only desktop viewer")}
+          />
 
-        <main className="min-h-0 min-w-0 overflow-hidden">
-          {currentView === "home" ? (
+          <main className="min-h-0 min-w-0 overflow-hidden">
             <WorkspaceHome
               activeSpace={activeSpace}
               spaces={spaces}
@@ -2385,53 +2473,9 @@ export default function App() {
               onRemoveSpace={handleRemoveSpace}
               onOpenRecentNote={handleOpenRecentNote}
             />
-          ) : (
-          <DocumentWorkspace
-            viewMode={viewMode}
-            onSetViewMode={setViewMode}
-            selectedFile={selectedFile}
-            isDirty={isDirty}
-            isSavingFile={isSavingFile}
-            autosave={settings.autosave}
-            toolbar={settings.toolbar}
-            documentPanel={documentPanel}
-            onSave={handleSaveCurrentFile}
-            onCreateNote={handleCreateNote}
-            onCreateJournal={handleCreateJournalEntry}
-            onRename={handleRenameCurrentFile}
-            onPrint={handlePrint}
-            onDownload={handleDownload}
-            onToggleMetadata={() =>
-              setDocumentPanel((current) => (current === "metadata" ? "toc" : "metadata"))
-            }
-            onDelete={handleDeleteCurrentFile}
-            onOpenSettings={() => setIsSettingsOpen(true)}
-            error={error}
-            isLoadingFile={isLoadingFile}
-            previewScrollRef={previewScrollRef}
-            settingsShowToc={settings.showToc}
-            settingsSourceWrap={settings.sourceWrap}
-            headings={headings}
-            onScrollToHeading={scrollToHeading}
-            projectName={projectName}
-            rootPath={rootPath}
-            activeExcludePaths={activeExcludePaths}
-            fileCount={files.length}
-            bookmarkCount={bookmarkedFiles.length}
-            gitStatuses={gitStatuses}
-            frontmatter={frontmatter}
-            prettifyNoteTitle={prettifyNoteTitle}
-            activeGitInfo={activeGitInfo}
-            fileHistory={fileHistory}
-            bookmarks={bookmarks}
-            onToggleBookmark={toggleBookmark}
-            draftContent={draftContent}
-            onDraftContentChange={setDraftContent}
-            onShowNotice={showNotice}
-          />
-          )}
-        </main>
-      </div>
+          </main>
+        </div>
+      )}
       {notice ? <div className="app-notice">{notice}</div> : null}
       <SettingsDialog
         open={isSettingsOpen}
