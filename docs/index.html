@@ -105,18 +105,19 @@
       /* ─── HERO ────────────────────────────── */
       .hero-wrap {
         background:
-          radial-gradient(ellipse 70% 55% at 60% 0%, rgba(80,82,232,0.09) 0%, transparent 55%),
-          radial-gradient(ellipse 40% 30% at 10% 80%, rgba(139,92,246,0.06) 0%, transparent 50%);
+          radial-gradient(ellipse 90% 55% at 50% -5%, rgba(80,82,232,0.1) 0%, transparent 58%),
+          radial-gradient(ellipse 50% 35% at 50% 105%, rgba(139,92,246,0.06) 0%, transparent 55%);
       }
 
       .hero {
         max-width: 1080px;
         margin: 0 auto;
-        padding: 72px 28px 64px;
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 56px;
+        padding: 80px 28px 64px;
+        display: flex;
+        flex-direction: column;
         align-items: center;
+        text-align: center;
+        gap: 52px;
       }
 
       .hero-badge {
@@ -142,7 +143,7 @@
       }
 
       h1 {
-        font-size: clamp(2.4rem, 4.5vw, 3.6rem);
+        font-size: clamp(2.6rem, 5.5vw, 4.2rem);
         font-weight: 800;
         line-height: 1.05;
         letter-spacing: -0.04em;
@@ -162,7 +163,9 @@
         line-height: 1.68;
         color: var(--text-soft);
         margin-bottom: 30px;
-        max-width: 440px;
+        max-width: 540px;
+        margin-left: auto;
+        margin-right: auto;
       }
 
       .actions {
@@ -170,6 +173,7 @@
         flex-wrap: wrap;
         gap: 10px;
         align-items: center;
+        justify-content: center;
         margin-bottom: 16px;
       }
 
@@ -216,16 +220,23 @@
       .hero-meta a { color: var(--indigo); }
       .hero-meta a:hover { text-decoration: underline; }
 
+      .hero-copy {
+        max-width: 680px;
+        width: 100%;
+      }
+
       /* ─── APP MOCKUP ─────────────────────── */
       .mockup-outer {
         position: relative;
+        width: 100%;
+        max-width: 940px;
       }
 
       .mockup-outer::before {
         content: "";
         position: absolute;
-        inset: -24px;
-        background: radial-gradient(ellipse at center, var(--indigo-bg) 0%, transparent 70%);
+        inset: -32px;
+        background: radial-gradient(ellipse at 50% 60%, var(--indigo-bg) 0%, transparent 65%);
         pointer-events: none;
         z-index: 0;
       }
@@ -682,7 +693,7 @@
 
       /* ─── RESPONSIVE ─────────────────────── */
       @media (max-width: 800px) {
-        .hero { grid-template-columns: 1fr; gap: 36px; padding: 48px 20px 36px; }
+        .hero { gap: 36px; padding: 52px 20px 40px; }
         .mockup-outer { display: none; }
         .features-grid { grid-template-columns: 1fr 1fr; }
         .steps { grid-template-columns: 1fr; }
@@ -720,7 +731,7 @@
     <!-- HERO -->
     <div class="hero-wrap">
       <div class="hero wrap">
-        <div>
+        <div class="hero-copy">
           <div class="hero-badge">
             <span class="badge-dot"></span>
             v0.1.2 &nbsp;·&nbsp; Free &amp; Open Source
