@@ -756,6 +756,7 @@ export default function App() {
   const [fileHistory, setFileHistory] = useState<GitFileHistoryEntry[]>([]);
   const previewScrollRef = useRef<HTMLDivElement | null>(null);
   const hasAutoOpenedActiveSpace = useRef(false);
+  const expandedRef = useRef<Set<string>>(new Set());
   const {
     hydrated,
     spaces,
@@ -771,6 +772,10 @@ export default function App() {
     removeSpace,
     clearWorkspace
   } = useWorkspace();
+
+  useEffect(() => {
+    expandedRef.current = expanded;
+  }, [expanded]);
 
   const tree = useMemo(() => buildTree(files), [files]);
   const visibleRows = useMemo(
@@ -1179,7 +1184,7 @@ export default function App() {
     }
 
     const previousSelectedPath = selectedFile?.relative_path ?? null;
-    const previousExpanded = expanded;
+    const previousExpanded = expandedRef.current;
 
     if (silent) {
       setIsAutoRefreshing(true);
