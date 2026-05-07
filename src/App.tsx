@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { open } from "@tauri-apps/plugin-dialog";
+import { open, save } from "@tauri-apps/plugin-dialog";
 import clsx from "clsx";
 import {
   Bookmark,
@@ -19,7 +19,6 @@ import {
   PenTool,
   Printer,
   RefreshCw,
-  Search,
   Settings,
   Star,
   Trash2,
@@ -30,9 +29,8 @@ import { DocumentWorkspace } from "./components/DocumentWorkspace";
 import { NoteDialog } from "./components/NoteDialog";
 import { SecondarySidebar } from "./components/SecondarySidebar";
 import { SettingsDialog } from "./components/SettingsDialog";
-import { Topbar } from "./components/Topbar";
+import { Topbar, topbarShareIcons } from "./components/Topbar";
 import { WorkspaceHome } from "./components/WorkspaceHome";
-import { WorkspaceSearchView } from "./components/WorkspaceSearchView";
 import { Input } from "./components/ui/input";
 import { Label } from "./components/ui/label";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./components/ui/tooltip";
@@ -74,13 +72,6 @@ type SearchResult = {
   relative_path: string;
   snippet: string;
   matched_on_path: boolean;
-};
-
-type WorkspaceSearchGroup = {
-  spaceId: string;
-  spaceName: string;
-  localPath: string;
-  results: SearchResult[];
 };
 
 type GitRepoInfo = {
@@ -170,8 +161,6 @@ type CloneResult = {
   path: string;
   name: string;
 };
-
-type WorkspaceSearchScope = "all" | "current";
 
 const BOOKMARKS_KEY = "md-project-viewer:bookmarks";
 const RECENT_NOTES_KEY = "md-project-viewer:recent-notes";
@@ -264,6 +253,12 @@ function splitNotePath(path: string) {
     directory: parts.join("/"),
     name
   };
+}
+
+function getPathLeaf(path: string) {
+  const normalized = path.replace(/\\/g, "/").replace(/\/+$/, "");
+  const segments = normalized.split("/").filter(Boolean);
+  return segments[segments.length - 1] || "space";
 }
 
 function joinNotePath(directory: string, name: string) {
@@ -722,7 +717,7 @@ function TreeBranch({
 }
 
 export default function App() {
-  const [currentView, setCurrentView] = useState<"home" | "space" | "search">("home");
+  const [currentView, setCurrentView] = useState<"home" | "space">("home");
   const [rootPath, setRootPath] = useState("");
   const [files, setFiles] = useState<MdFile[]>([]);
   const [selectedFile, setSelectedFile] = useState<MdFile | null>(null);
@@ -732,11 +727,6 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
-  const [workspaceSearchQuery, setWorkspaceSearchQuery] = useState("");
-  const [workspaceSearchScope, setWorkspaceSearchScope] = useState<WorkspaceSearchScope>("all");
-  const [workspaceSearchBookmarksOnly, setWorkspaceSearchBookmarksOnly] = useState(false);
-  const [workspaceSearchGroups, setWorkspaceSearchGroups] = useState<WorkspaceSearchGroup[]>([]);
-  const [isWorkspaceSearching, setIsWorkspaceSearching] = useState(false);
   const [isLoadingTree, setIsLoadingTree] = useState(false);
   const [openingSpacePath, setOpeningSpacePath] = useState<string | null>(null);
   const [openingRecentNoteKey, setOpeningRecentNoteKey] = useState<string | null>(null);
@@ -851,13 +841,6 @@ export default function App() {
   }, [activeSpace, rootPath]);
   const isDirty = selectedFile !== null && draftContent !== content;
   const dirtyRelativePath = isDirty ? selectedFile?.relative_path ?? null : null;
-  const workspaceSearchSpaces = useMemo(() => {
-    if (workspaceSearchScope === "current") {
-      return activeSpace ? [activeSpace] : [];
-    }
-    return visibleSpaces;
-  }, [activeSpace, visibleSpaces, workspaceSearchScope]);
-
   useEffect(() => {
     const stored = window.localStorage.getItem(BOOKMARKS_KEY);
     if (!stored) {
@@ -1066,65 +1049,6 @@ export default function App() {
       cancelled = true;
     };
   }, [activeGitInfo?.is_repo, selectedFile?.path, content]);
-
-  useEffect(() => {
-    if (currentView !== "search") {
-      return;
-    }
-
-    const query = workspaceSearchQuery.trim();
-    if (!query) {
-      setWorkspaceSearchGroups([]);
-      setIsWorkspaceSearching(false);
-      return;
-    }
-
-    let cancelled = false;
-    const timeoutId = window.setTimeout(() => {
-      setIsWorkspaceSearching(true);
-
-      void Promise.all(
-        workspaceSearchSpaces.map(async (space) => {
-          const results = await invoke<SearchResult[]>("search_markdown", {
-            path: space.localPath,
-            query,
-            excludePaths: space.excludePaths
-          });
-
-          return {
-            spaceId: space.id,
-            spaceName: getSpaceLabel(space),
-            localPath: space.localPath,
-            results: workspaceSearchBookmarksOnly
-              ? results.filter((result) => bookmarks.includes(result.path))
-              : results
-          } satisfies WorkspaceSearchGroup;
-        })
-      )
-        .then((groups) => {
-          if (cancelled) {
-            return;
-          }
-
-          setWorkspaceSearchGroups(groups.filter((group) => group.results.length > 0));
-        })
-        .catch((searchError) => {
-          if (!cancelled) {
-            setError(searchError instanceof Error ? searchError.message : String(searchError));
-          }
-        })
-        .finally(() => {
-          if (!cancelled) {
-            setIsWorkspaceSearching(false);
-          }
-        });
-    }, 160);
-
-    return () => {
-      cancelled = true;
-      window.clearTimeout(timeoutId);
-    };
-  }, [bookmarks, currentView, workspaceSearchBookmarksOnly, workspaceSearchQuery, workspaceSearchSpaces]);
 
   useEffect(() => {
     if (spaces.length === 0) {
@@ -1507,19 +1431,70 @@ export default function App() {
     void scanRoot(activeSpace.localPath, { preserveSelection: true, resetSearch: false });
   }
 
-  async function handleShare() {
-    if (selectedFile) {
-      await copyText(selectedFile.path, "File path copied");
+  async function handleExportSpaceZip() {
+    if (!rootPath) {
+      showNotice("Open a space first");
       return;
     }
 
-    if (rootPath) {
-      await copyText(rootPath, "Project path copied");
+    const suggestedName = `${getPathLeaf(rootPath)}.zip`;
+    const destination = await save({
+      defaultPath: suggestedName,
+      filters: [{ name: "Zip Archive", extensions: ["zip"] }],
+    });
+
+    if (!destination) {
       return;
     }
 
-    showNotice("Select a project first");
+    try {
+      await invoke("export_directory_zip", {
+        path: rootPath,
+        destinationPath: destination,
+      });
+      showNotice("Space exported as zip");
+    } catch (exportError) {
+      setError(exportError instanceof Error ? exportError.message : String(exportError));
+    }
   }
+
+  const topbarShareActions = useMemo(
+    () => [
+      {
+        key: "copy-file-path",
+        label: "Copy file path",
+        description: "Copy the current markdown file path.",
+        icon: topbarShareIcons.copy,
+        disabled: !selectedFile,
+        onSelect: () => copyText(selectedFile?.path ?? "", "File path copied"),
+      },
+      {
+        key: "copy-space-path",
+        label: "Copy space path",
+        description: "Copy the current space folder path.",
+        icon: topbarShareIcons.copy,
+        disabled: !rootPath,
+        onSelect: () => copyText(rootPath, "Space path copied"),
+      },
+      {
+        key: "export-markdown",
+        label: "Export current markdown",
+        description: "Download the current note as a markdown file.",
+        icon: topbarShareIcons.download,
+        disabled: !selectedFile,
+        onSelect: handleDownload,
+      },
+      {
+        key: "export-space-zip",
+        label: "Export space as zip",
+        description: "Create a zip archive of the current space.",
+        icon: topbarShareIcons.zip,
+        disabled: !rootPath,
+        onSelect: handleExportSpaceZip,
+      },
+    ],
+    [rootPath, selectedFile, draftContent]
+  );
 
   function handlePrint() {
     if (!selectedFile) {
@@ -1872,10 +1847,6 @@ export default function App() {
     await copyText(space.localPath, "Space path copied");
   }
 
-  function handleOpenWorkspaceSearch() {
-    setCurrentView("search");
-  }
-
   async function handleOpenRecentNote(note: RecentNote) {
     const space = spaces.find((item) => item.id === note.spaceId);
     if (!space) {
@@ -1893,14 +1864,6 @@ export default function App() {
       }
     } finally {
       setOpeningRecentNoteKey((current) => (current === noteKey ? null : current));
-    }
-  }
-
-  async function handleOpenWorkspaceSearchResult(group: WorkspaceSearchGroup, result: SearchResult) {
-    const scanned = await handleOpenSpace(group.localPath);
-    const nextFile = scanned.find((file) => file.relative_path === result.relative_path);
-    if (nextFile) {
-      await loadFile(nextFile);
     }
   }
 
@@ -2279,22 +2242,6 @@ export default function App() {
                   type="button"
                   className={clsx(
                     railButtonClassName,
-                    currentView === "search" && railButtonActiveClassName
-                  )}
-                  aria-label="Search"
-                  onClick={handleOpenWorkspaceSearch}
-                >
-                  <Search className="icon h-5 w-5" />
-                </button>
-              </TooltipTrigger>
-              <TooltipContent side="right">Search</TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  type="button"
-                  className={clsx(
-                    railButtonClassName,
                     currentView === "space" &&
                       activePanel === "explorer" &&
                       railButtonActiveClassName
@@ -2398,24 +2345,12 @@ export default function App() {
 
       <div className="grid min-h-0 min-w-0 grid-rows-[56px_minmax(0,1fr)] overflow-hidden">
         <Topbar
-          title={
-            currentView === "home"
-              ? "Workspace Home"
-              : currentView === "search"
-                ? "Workspace Search"
-                : "Markdown Viewer"
-          }
-          searchValue={currentView === "search" ? workspaceSearchQuery : searchQuery}
-          searchPlaceholder={currentView === "search" ? "Search across spaces..." : "Search files..."}
-          onSearchChange={(value) => {
-            if (currentView === "search") {
-              setWorkspaceSearchQuery(value);
-              return;
-            }
-            setSearchQuery(value);
-          }}
+          title={currentView === "home" ? "Workspace Home" : "Markdown Viewer"}
+          searchValue={searchQuery}
+          searchPlaceholder="Search files..."
+          onSearchChange={setSearchQuery}
           onRefresh={handleRefreshCurrent}
-          onShare={handleShare}
+          shareActions={topbarShareActions}
           onProfile={() => showNotice("Local-only desktop viewer")}
         />
 
@@ -2444,18 +2379,6 @@ export default function App() {
               onToggleArchivedSpace={handleToggleArchivedSpace}
               onRemoveSpace={handleRemoveSpace}
               onOpenRecentNote={handleOpenRecentNote}
-            />
-          ) : currentView === "search" ? (
-            <WorkspaceSearchView
-              workspaceSearchScope={workspaceSearchScope}
-              onWorkspaceSearchScopeChange={setWorkspaceSearchScope}
-              workspaceSearchBookmarksOnly={workspaceSearchBookmarksOnly}
-              onWorkspaceSearchBookmarksOnlyChange={setWorkspaceSearchBookmarksOnly}
-              workspaceSearchQuery={workspaceSearchQuery}
-              isWorkspaceSearching={isWorkspaceSearching}
-              workspaceSearchGroups={workspaceSearchGroups}
-              onOpenWorkspaceSearchResult={handleOpenWorkspaceSearchResult}
-              highlightParts={highlightParts}
             />
           ) : (
           <DocumentWorkspace

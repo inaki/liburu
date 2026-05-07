@@ -1,4 +1,5 @@
 use std::{
+    collections::HashMap,
     path::{Path, PathBuf},
     process::Command,
     sync::Mutex,
@@ -285,51 +286,57 @@ fn search_markdown(
 ) -> Result<Vec<SearchResult>, String> {
     let root = canonicalize_directory(Path::new(&path))?;
     let excludes = normalize_excludes(exclude_paths);
-    let needle = query.trim().to_lowercase();
+    let needle = query.trim();
 
     if needle.is_empty() {
         return Ok(Vec::new());
     }
 
-    let mut results = Vec::new();
+    let files = collect_markdown_files(&root, &excludes)?;
+    let query_lower = needle.to_lowercase();
+    let mut results_by_path: HashMap<String, SearchResult> = HashMap::new();
 
-    for entry in WalkDir::new(&root)
-        .follow_links(false)
-        .into_iter()
-        .filter_map(Result::ok)
-    {
-        if should_skip_path(&root, entry.path(), &excludes) {
-            continue;
+    for file in &files {
+        if file.relative_path.to_lowercase().contains(&query_lower) {
+            results_by_path.insert(
+                file.relative_path.clone(),
+                SearchResult {
+                    path: file.path.to_string_lossy().to_string(),
+                    name: file.name.clone(),
+                    relative_path: file.relative_path.clone(),
+                    snippet: String::new(),
+                    matched_on_path: true,
+                },
+            );
         }
-
-        if !entry.file_type().is_file() || !is_markdown_path(entry.path()) {
-            continue;
-        }
-
-        let relative_path = entry
-            .path()
-            .strip_prefix(&root)
-            .map_err(|_| "Failed to compute file path relative to selected root".to_string())?
-            .to_string_lossy()
-            .replace('\\', "/");
-        let matched_on_path = relative_path.to_lowercase().contains(&needle);
-
-        let content = std::fs::read_to_string(entry.path()).unwrap_or_default();
-        let content_lower = content.to_lowercase();
-
-        if !matched_on_path && !content_lower.contains(&needle) {
-            continue;
-        }
-
-        results.push(SearchResult {
-            path: entry.path().to_string_lossy().to_string(),
-            name: entry.file_name().to_string_lossy().to_string(),
-            relative_path,
-            snippet: build_search_snippet(&content, &content_lower, &needle),
-            matched_on_path,
-        });
     }
 
+    let content_matches = search_markdown_with_ripgrep(&root, needle, &excludes)
+        .or_else(|_| search_markdown_with_fallback(&files, &query_lower));
+
+    for (relative_path, snippet) in content_matches? {
+        if let Some(existing) = results_by_path.get_mut(&relative_path) {
+            if existing.snippet.is_empty() {
+                existing.snippet = snippet;
+            }
+            continue;
+        }
+
+        if let Some(file) = files.iter().find(|file| file.relative_path == relative_path) {
+            results_by_path.insert(
+                relative_path.clone(),
+                SearchResult {
+                    path: file.path.to_string_lossy().to_string(),
+                    name: file.name.clone(),
+                    relative_path,
+                    snippet,
+                    matched_on_path: false,
+                },
+            );
+        }
+    }
+
+    let mut results = results_by_path.into_values().collect::<Vec<_>>();
     results.sort_by(|left, right| left.relative_path.cmp(&right.relative_path));
 
     Ok(results)
@@ -686,6 +693,102 @@ fn open_space_in_terminal(path: String) -> Result<(), String> {
     Ok(())
 }
 
+#[command]
+fn export_directory_zip(
+    path: String,
+    destination_path: String,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    let root = selected_root(&state, "Select a root folder before exporting")?;
+    let source = canonicalize_directory(Path::new(&path))?;
+
+    if !source.starts_with(&root) {
+        return Err("Refusing to export directories outside the selected root".to_string());
+    }
+
+    let destination = PathBuf::from(destination_path.trim());
+    if destination.as_os_str().is_empty() {
+        return Err("A destination path is required".to_string());
+    }
+
+    let parent = destination
+        .parent()
+        .ok_or_else(|| "Destination must include a parent directory".to_string())?;
+    let parent = canonicalize_directory(parent)?;
+
+    let mut filename = destination
+        .file_name()
+        .ok_or_else(|| "Destination must include a file name".to_string())?
+        .to_string_lossy()
+        .to_string();
+    if !filename.to_ascii_lowercase().ends_with(".zip") {
+        filename.push_str(".zip");
+    }
+
+    let output_path = parent.join(filename);
+
+    if output_path.exists() {
+        std::fs::remove_file(&output_path)
+            .map_err(|error| format!("Failed to replace {}: {error}", output_path.display()))?;
+    }
+
+    #[cfg(target_os = "macos")]
+    let output = Command::new("ditto")
+        .args([
+            "-c",
+            "-k",
+            "--sequesterRsrc",
+            "--keepParent",
+            source.to_string_lossy().as_ref(),
+            output_path.to_string_lossy().as_ref(),
+        ])
+        .output()
+        .map_err(|error| format!("Failed to run ditto: {error}"))?;
+
+    #[cfg(target_os = "linux")]
+    let output = Command::new("zip")
+        .args([
+            "-r",
+            output_path.to_string_lossy().as_ref(),
+            source
+                .file_name()
+                .and_then(|value| value.to_str())
+                .ok_or_else(|| "Failed to resolve folder name".to_string())?,
+        ])
+        .current_dir(
+            source
+                .parent()
+                .ok_or_else(|| "Failed to resolve source parent directory".to_string())?,
+        )
+        .output()
+        .map_err(|error| format!("Failed to run zip: {error}"))?;
+
+    #[cfg(target_os = "windows")]
+    let output = Command::new("powershell")
+        .args([
+            "-NoProfile",
+            "-Command",
+            &format!(
+                "Compress-Archive -Path '{}' -DestinationPath '{}' -Force",
+                source.display(),
+                output_path.display()
+            ),
+        ])
+        .output()
+        .map_err(|error| format!("Failed to run Compress-Archive: {error}"))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        return Err(if stderr.is_empty() {
+            "Failed to export zip".to_string()
+        } else {
+            stderr
+        });
+    }
+
+    Ok(())
+}
+
 fn selected_root(state: &State<'_, AppState>, message: &str) -> Result<PathBuf, String> {
     let selected_root = state
         .selected_root
@@ -721,11 +824,51 @@ fn canonicalize_file(path: &Path) -> Result<PathBuf, String> {
     Ok(canonical)
 }
 
+#[derive(Clone)]
+struct MarkdownFileEntry {
+    path: PathBuf,
+    name: String,
+    relative_path: String,
+}
+
 fn is_markdown_path(path: &Path) -> bool {
     match path.extension().and_then(|extension| extension.to_str()) {
         Some(extension) => matches!(extension.to_ascii_lowercase().as_str(), "md" | "markdown"),
         None => false,
     }
+}
+
+fn collect_markdown_files(root: &Path, excludes: &[String]) -> Result<Vec<MarkdownFileEntry>, String> {
+    let mut files = Vec::new();
+
+    for entry in WalkDir::new(root)
+        .follow_links(false)
+        .into_iter()
+        .filter_map(Result::ok)
+    {
+        if should_skip_path(root, entry.path(), excludes) {
+            continue;
+        }
+
+        if !entry.file_type().is_file() || !is_markdown_path(entry.path()) {
+            continue;
+        }
+
+        let relative_path = entry
+            .path()
+            .strip_prefix(root)
+            .map_err(|_| "Failed to compute file path relative to selected root".to_string())?
+            .to_string_lossy()
+            .replace('\\', "/");
+
+        files.push(MarkdownFileEntry {
+            path: entry.path().to_path_buf(),
+            name: entry.file_name().to_string_lossy().to_string(),
+            relative_path,
+        });
+    }
+
+    Ok(files)
 }
 
 fn normalize_excludes(exclude_paths: Option<Vec<String>>) -> Vec<String> {
@@ -773,15 +916,125 @@ fn should_skip_relative_path(relative_path: &str, excludes: &[String]) -> bool {
     })
 }
 
-fn build_search_snippet(content: &str, content_lower: &str, needle: &str) -> String {
-    if let Some(index) = content_lower.find(needle) {
-        let start = index.saturating_sub(48);
-        let end = (index + needle.len() + 88).min(content.len());
-        let snippet = content[start..end].replace('\n', " ");
-        return snippet.split_whitespace().collect::<Vec<_>>().join(" ");
+fn build_search_snippet(content: &str, _content_lower: &str, needle: &str) -> String {
+    for line in content.lines() {
+        let normalized = line.split_whitespace().collect::<Vec<_>>().join(" ");
+        if normalized.is_empty() {
+            continue;
+        }
+
+        if normalized.to_lowercase().contains(needle) {
+            let snippet = normalized.chars().take(160).collect::<String>();
+            return if normalized.chars().count() > 160 {
+                format!("{snippet}...")
+            } else {
+                snippet
+            };
+        }
     }
 
-    String::new()
+    content
+        .split_whitespace()
+        .take(24)
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+fn search_markdown_with_fallback(
+    files: &[MarkdownFileEntry],
+    query_lower: &str,
+) -> Result<Vec<(String, String)>, String> {
+    let mut matches = Vec::new();
+
+    for file in files {
+        let content = std::fs::read_to_string(&file.path)
+            .map_err(|error| format!("Failed to read {}: {error}", file.path.display()))?;
+        let content_lower = content.to_lowercase();
+
+        if !content_lower.contains(query_lower) {
+            continue;
+        }
+
+        matches.push((
+            file.relative_path.clone(),
+            build_search_snippet(&content, &content_lower, query_lower),
+        ));
+    }
+
+    Ok(matches)
+}
+
+fn search_markdown_with_ripgrep(
+    root: &Path,
+    query: &str,
+    excludes: &[String],
+) -> Result<Vec<(String, String)>, String> {
+    let mut command = Command::new("rg");
+    command
+        .current_dir(root)
+        .args([
+            "--ignore-case",
+            "--line-number",
+            "--no-heading",
+            "--color",
+            "never",
+            "--max-count",
+            "1",
+            "--hidden",
+            "--no-ignore",
+            "--glob",
+            "*.md",
+            "--glob",
+            "*.markdown",
+            query,
+            ".",
+        ]);
+
+    for exclude in excludes {
+        let pattern = if exclude.contains('/') {
+            format!("!{exclude}/**")
+        } else {
+            format!("!**/{exclude}/**")
+        };
+        command.args(["--glob", &pattern]);
+    }
+
+    let output = command
+        .output()
+        .map_err(|error| format!("Failed to run ripgrep: {error}"))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        if output.status.code() == Some(1) && stdout.trim().is_empty() {
+            return Ok(Vec::new());
+        }
+        return Err(if stderr.is_empty() {
+            "ripgrep search failed".to_string()
+        } else {
+            stderr
+        });
+    }
+
+    let mut matches = Vec::new();
+    for line in String::from_utf8_lossy(&output.stdout).lines() {
+        let mut parts = line.splitn(3, ':');
+        let relative_path = parts
+            .next()
+            .unwrap_or_default()
+            .trim_start_matches("./")
+            .replace('\\', "/");
+        let _line_number = parts.next();
+        let text = parts.next().unwrap_or_default().trim();
+
+        if relative_path.is_empty() {
+            continue;
+        }
+
+        matches.push((relative_path, text.to_string()));
+    }
+
+    Ok(matches)
 }
 
 fn normalize_git_status(raw_status: &str) -> String {
@@ -858,7 +1111,8 @@ pub fn run() {
             get_git_statuses,
             get_file_history,
             reveal_in_file_manager,
-            open_space_in_terminal
+            open_space_in_terminal,
+            export_directory_zip
         ])
         .setup(|app| {
             if let Some(window) = app.get_webview_window("main") {
