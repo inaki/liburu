@@ -171,7 +171,7 @@
         <article class="card">
           <h2>macOS Install</h2>
           <ul>
-            <li>Download the ZIP or DMG from Releases</li>
+            <li>Download the ZIP from Releases</li>
             <li>Move <code>Liburu.app</code> into Applications</li>
             <li>Right-click and choose Open on first launch</li>
           </ul>
@@ -180,6 +180,9 @@
           <h2>Unsigned App</h2>
           <p>
             Liburu is currently distributed unsigned and not notarized, so macOS will show a first-run security warning.
+          </p>
+          <p>
+            If needed, run <code>xattr -dr com.apple.quarantine /Applications/Liburu.app</code> once after installing.
           </p>
         </article>
       </section>

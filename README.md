@@ -7,8 +7,7 @@
 <p align="center">
   <a href="https://inaki.github.io/liburu/">Website</a> ·
   <a href="https://github.com/inaki/liburu/releases">Releases</a> ·
-  <a href="https://github.com/inaki/liburu/releases/latest/download/Liburu-macOS.zip">Download macOS ZIP</a> ·
-  <a href="https://github.com/inaki/liburu/releases/latest/download/Liburu-macOS.dmg">Download macOS DMG</a>
+  <a href="https://github.com/inaki/liburu/releases/latest/download/Liburu-macOS.zip">Download macOS ZIP</a>
 </p>
 
 A lightweight desktop app for browsing Markdown documentation inside real project folders.
@@ -103,7 +102,6 @@ Current macOS release artifacts:
 
 ```bash
 dist-release/Liburu-macOS.zip
-dist-release/Liburu-macOS.dmg
 ```
 
 ### Recommended GitHub Release Upload
@@ -111,7 +109,6 @@ dist-release/Liburu-macOS.dmg
 Upload:
 
 - `Liburu-macOS.zip`
-- `Liburu-macOS.dmg`
 
 This is the easiest unsigned macOS artifact for users to download and install.
 
@@ -126,11 +123,17 @@ That means macOS will show a security warning on first launch.
 
 ### First Launch Instructions For Users
 
-1. Download `Liburu-macOS.zip` or `Liburu-macOS.dmg`
-2. If you used the ZIP, unzip it
+1. Download `Liburu-macOS.zip`
+2. Unzip it
 3. Move `Liburu.app` into `Applications`
 4. Right-click the app and choose `Open`
 5. Confirm the security prompt
+
+If macOS still refuses to open the app after download, remove the quarantine flag once:
+
+```bash
+xattr -dr com.apple.quarantine /Applications/Liburu.app
+```
 
 After the first successful launch, users can open it normally.
 
