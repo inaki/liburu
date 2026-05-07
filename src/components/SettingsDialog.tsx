@@ -261,10 +261,11 @@ export function SettingsDialog({
                           <TooltipTrigger asChild>
                             <span
                               className={clsx(
-                                "inline-flex h-8 w-8 items-center justify-center rounded-[10px] border border-[color:var(--outline)] bg-[color:var(--surface-low)] text-[color:var(--text-muted)] transition-[transform,box-shadow,background-color,border-color,color]",
-                                "group-hover:-translate-y-px group-hover:border-[color:var(--outline-strong)] group-hover:bg-[color:var(--surface-lowest)] group-hover:text-[color:var(--text)] group-focus-visible:-translate-y-px group-focus-visible:border-[color:var(--outline-strong)] group-focus-visible:bg-[color:var(--surface-lowest)] group-focus-visible:text-[color:var(--text)]",
-                                isSelected &&
-                                  "border-[color:var(--indigo)] bg-[color:var(--indigo)] text-white shadow-[0_10px_22px_color-mix(in_srgb,var(--indigo)_24%,transparent)]"
+                                "inline-flex h-11 w-11 items-center justify-center rounded-[14px] border border-[color:var(--outline)] bg-[color:var(--surface-lowest)] text-[color:var(--text-muted)] transition-[transform,background-color,border-color,color,opacity]",
+                                "group-hover:-translate-y-px group-hover:border-[color:var(--outline-strong)] group-hover:bg-[color:var(--surface-low)] group-focus-visible:-translate-y-px group-focus-visible:border-[color:var(--outline-strong)] group-focus-visible:bg-[color:var(--surface-low)]",
+                                isSelected
+                                  ? "border-[color:color-mix(in_srgb,var(--indigo-soft)_28%,var(--outline))] text-[color:var(--indigo-soft)] [&_svg]:text-[color:var(--indigo-soft)] [&_svg]:stroke-current"
+                                  : "text-[color:var(--text-muted)] opacity-55 group-hover:opacity-100 group-hover:text-[color:var(--text)] group-focus-visible:opacity-100 group-focus-visible:text-[color:var(--text)] [&_svg]:stroke-current"
                               )}
                               aria-hidden="true"
                             >

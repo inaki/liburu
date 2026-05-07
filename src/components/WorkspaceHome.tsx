@@ -55,7 +55,6 @@ type WorkspaceHomeProps = {
   onToggleArchivedSpace: (id: string) => void;
   onRemoveSpace: (id: string) => void;
   onOpenRecentNote: (note: RecentNote) => void | Promise<void>;
-  onEnterSpaceView: () => void;
 };
 
 export function WorkspaceHome({
@@ -80,8 +79,7 @@ export function WorkspaceHome({
   onMoveSpace,
   onToggleArchivedSpace,
   onRemoveSpace,
-  onOpenRecentNote,
-  onEnterSpaceView
+  onOpenRecentNote
 }: WorkspaceHomeProps) {
   const homePanelClass =
     "grid min-h-[320px] grid-rows-[auto_minmax(0,1fr)] overflow-hidden rounded-[16px] border border-[color:var(--outline)] bg-[color:color-mix(in_srgb,var(--surface-low)_96%,transparent)]";
@@ -132,14 +130,7 @@ export function WorkspaceHome({
           <button
             type="button"
             className="rounded-[8px] bg-[color:var(--surface-high)] px-[14px] py-2.5 text-[color:var(--text)] transition hover:-translate-y-px hover:bg-[color:var(--surface-highest)] hover:shadow-[0_8px_20px_color-mix(in_srgb,var(--outline-strong)_16%,transparent)]"
-            onClick={() => {
-              if (activeSpace?.localPath) {
-                onEnterSpaceView();
-                void onCreateJournalEntry();
-                return;
-              }
-              onShowNotice("Open a space first to create a journal entry");
-            }}
+            onClick={() => void onCreateJournalEntry()}
           >
             New Journal Entry
           </button>

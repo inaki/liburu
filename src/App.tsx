@@ -1658,6 +1658,71 @@ export default function App() {
     }
   }
 
+  async function ensureActiveSpaceReady() {
+    if (!activeSpace?.localPath) {
+      showNotice("Open a space first");
+      return false;
+    }
+
+    if (rootPath !== activeSpace.localPath) {
+      const scanned = await handleOpenSpace(activeSpace.localPath);
+      if (scanned.length === 0) {
+        return false;
+      }
+    } else {
+      setCurrentView("space");
+    }
+
+    return true;
+  }
+
+  async function ensureActiveSpacePreparedForDialog() {
+    if (!activeSpace?.localPath) {
+      showNotice("Open a space first");
+      return false;
+    }
+
+    if (rootPath !== activeSpace.localPath) {
+      const scanned = await scanRoot(activeSpace.localPath, {
+        preserveSelection: true,
+        resetSearch: false,
+        activateView: false
+      });
+      if (scanned.length === 0) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  async function handleCreateNoteFromHome() {
+    const ready = await ensureActiveSpacePreparedForDialog();
+    if (!ready) {
+      return;
+    }
+
+    await handleCreateNote();
+  }
+
+  async function handleCreateJournalEntryFromHome() {
+    const ready = await ensureActiveSpacePreparedForDialog();
+    if (!ready) {
+      return;
+    }
+
+    await handleCreateJournalEntry();
+  }
+
+  async function handleCreateTemplateNoteFromHome(template: "idea" | "meeting") {
+    const ready = await ensureActiveSpacePreparedForDialog();
+    if (!ready) {
+      return;
+    }
+
+    await handleCreateTemplateNote(template);
+  }
+
   function handleOpenHome() {
     setCurrentView("home");
   }
@@ -2369,9 +2434,9 @@ export default function App() {
               openingRecentNoteKey={openingRecentNoteKey}
               onSelectRootDirectory={selectRootDirectory}
               onOpenCloneDialog={openCloneDialog}
-              onCreateJournalEntry={handleCreateJournalEntry}
-              onCreateNote={handleCreateNote}
-              onCreateTemplateNote={handleCreateTemplateNote}
+              onCreateJournalEntry={handleCreateJournalEntryFromHome}
+              onCreateNote={handleCreateNoteFromHome}
+              onCreateTemplateNote={handleCreateTemplateNoteFromHome}
               onShowNotice={showNotice}
               onOpenSpace={handleOpenSpace}
               onTogglePinnedSpace={handleTogglePinnedSpace}
@@ -2379,7 +2444,6 @@ export default function App() {
               onToggleArchivedSpace={handleToggleArchivedSpace}
               onRemoveSpace={handleRemoveSpace}
               onOpenRecentNote={handleOpenRecentNote}
-              onEnterSpaceView={() => setCurrentView("space")}
             />
           ) : currentView === "search" ? (
             <WorkspaceSearchView

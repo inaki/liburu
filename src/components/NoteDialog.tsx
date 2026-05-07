@@ -41,6 +41,8 @@ type NoteDialogProps = {
   onSubmit: () => void | Promise<void>;
 };
 
+const ROOT_DIRECTORY_VALUE = "__root__";
+
 export function NoteDialog({
   noteDialog,
   notePathInput,
@@ -82,16 +84,24 @@ export function NoteDialog({
               <>
                 <div className="grid gap-2.5 rounded-[10px] border border-[color:var(--outline)] bg-[color:var(--surface-lowest)] p-[14px]">
                   <Label>Parent folder</Label>
-                  <Select value={noteDirectoryInput} onValueChange={onNoteDirectoryChange}>
+                  <Select
+                    value={noteDirectoryInput || ROOT_DIRECTORY_VALUE}
+                    onValueChange={(value) =>
+                      onNoteDirectoryChange(value === ROOT_DIRECTORY_VALUE ? "" : value)
+                    }
+                  >
                     <SelectTrigger>
                       <SelectValue placeholder="Choose a folder" />
                     </SelectTrigger>
                     <SelectContent>
-                      {directoryOptions.map((directory) => (
-                        <SelectItem key={directory || "root"} value={directory}>
-                          {directory || "Root"}
-                        </SelectItem>
-                      ))}
+                      <SelectItem value={ROOT_DIRECTORY_VALUE}>Root</SelectItem>
+                      {directoryOptions
+                        .filter((directory) => directory !== "")
+                        .map((directory) => (
+                          <SelectItem key={directory} value={directory}>
+                            {directory}
+                          </SelectItem>
+                        ))}
                     </SelectContent>
                   </Select>
                   <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2.5">
