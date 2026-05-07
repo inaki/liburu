@@ -108,7 +108,7 @@ export function WorkspaceSearchView({
                     <button
                       key={`${group.spaceId}:${result.path}`}
                       type="button"
-                      className="grid w-full gap-1.5 rounded-[10px] border border-[color:var(--outline)] bg-[color:var(--surface-lowest)] p-3 text-left text-[color:var(--text)] transition-colors hover:bg-[color:var(--surface-high)]"
+                      className="grid w-full cursor-pointer gap-1.5 rounded-[10px] border border-[color:var(--outline)] bg-[color:var(--surface-lowest)] p-3 text-left text-[color:var(--text)] transition-colors hover:bg-[color:var(--surface-high)]"
                       onClick={() => onOpenWorkspaceSearchResult(group, result)}
                     >
                       <div className="flex min-w-0 items-center gap-2.5">

@@ -110,7 +110,7 @@ export function Topbar({
                     type="button"
                     role="menuitem"
                     disabled={action.disabled}
-                    className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-start gap-3 rounded-[10px] border border-transparent bg-transparent px-3 py-2 text-left transition-colors hover:border-[color:var(--outline)] hover:bg-[color:color-mix(in_srgb,var(--surface-low)_38%,transparent)] disabled:cursor-not-allowed disabled:opacity-45"
+                    className="grid min-w-0 cursor-pointer grid-cols-[auto_minmax(0,1fr)] items-start gap-3 rounded-[10px] border border-transparent bg-transparent px-3 py-2 text-left transition-colors hover:border-[color:var(--outline)] hover:bg-[color:color-mix(in_srgb,var(--surface-low)_38%,transparent)] disabled:cursor-not-allowed disabled:opacity-45"
                     onClick={() => {
                       setIsShareOpen(false);
                       void action.onSelect();

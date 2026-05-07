@@ -231,7 +231,7 @@ function getGitStatusBadgeClass(status: string) {
 }
 
 const railButtonClassName =
-  "grid h-[42px] w-[42px] place-items-center rounded-[6px] bg-transparent text-[color:var(--text-muted)] transition-colors hover:bg-[color:var(--surface-highest)] hover:text-[color:var(--text)]";
+  "grid h-[42px] w-[42px] cursor-pointer place-items-center rounded-[6px] bg-transparent text-[color:var(--text-muted)] transition-colors hover:bg-[color:var(--surface-highest)] hover:text-[color:var(--text)]";
 
 const railButtonActiveClassName =
   "!bg-[color:var(--surface-highest)] !text-[color:var(--indigo)] shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--indigo)_16%,transparent)]";
@@ -627,7 +627,7 @@ function TreeBranch({
         const isDirty = dirtyPath === row.path;
         const indent = { paddingLeft: `${row.depth * 18 + 14}px` };
         const rowClassName = clsx(
-          "group flex min-h-[var(--row-height)] w-full items-center gap-2.5 rounded-r-[6px] bg-transparent px-[var(--panel-padding)] py-1.5 text-left text-[color:var(--text-muted)] transition-colors hover:bg-[color:var(--surface-high)] hover:text-[color:var(--text)]",
+          "group flex min-h-[var(--row-height)] w-full cursor-pointer items-center gap-2.5 rounded-r-[6px] bg-transparent px-[var(--panel-padding)] py-1.5 text-left text-[color:var(--text-muted)] transition-colors hover:bg-[color:var(--surface-high)] hover:text-[color:var(--text)]",
           isFocused && "bg-[color:var(--surface-high)] text-[color:var(--text)]",
           isSelected &&
             "bg-[color:color-mix(in_srgb,var(--surface-highest)_88%,transparent)] text-[color:var(--text)] shadow-[inset_2px_0_0_var(--indigo)]"
@@ -661,7 +661,7 @@ function TreeBranch({
               >
                 <button
                   type="button"
-                  className="grid h-6 w-6 place-items-center rounded-[6px] bg-transparent text-[color:var(--text-muted)] transition-colors hover:bg-[color:var(--surface-highest)] hover:text-[color:var(--text)]"
+                  className="grid h-6 w-6 cursor-pointer place-items-center rounded-[6px] bg-transparent text-[color:var(--text-muted)] transition-colors hover:bg-[color:var(--surface-highest)] hover:text-[color:var(--text)]"
                   aria-label="Create note in folder"
                   onClick={(event) => {
                     event.stopPropagation();
@@ -673,7 +673,7 @@ function TreeBranch({
                 {row.path === "journal" || row.path.startsWith("journal/") ? (
                   <button
                     type="button"
-                    className="grid h-6 w-6 place-items-center rounded-[6px] bg-transparent text-[color:var(--text-muted)] transition-colors hover:bg-[color:var(--surface-highest)] hover:text-[color:var(--text)]"
+                    className="grid h-6 w-6 cursor-pointer place-items-center rounded-[6px] bg-transparent text-[color:var(--text-muted)] transition-colors hover:bg-[color:var(--surface-highest)] hover:text-[color:var(--text)]"
                     aria-label="Create journal entry in folder"
                     onClick={(event) => {
                       event.stopPropagation();
@@ -2226,7 +2226,7 @@ export default function App() {
               <button
                 type="button"
                 className={clsx(
-                  "grid place-items-center overflow-hidden bg-transparent font-bold text-[color:var(--indigo)]"
+                  "grid cursor-pointer place-items-center overflow-hidden bg-transparent font-bold text-[color:var(--indigo)]"
                 )}
                 onClick={handleOpenHome}
               >

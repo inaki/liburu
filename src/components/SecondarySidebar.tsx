@@ -190,7 +190,7 @@ export function SecondarySidebar({
                       key={result.path}
                       type="button"
                         className={clsx(
-                          "grid w-full gap-1.5 rounded-[10px] border border-[color:var(--outline)] bg-[color:var(--surface-lowest)] p-3 text-left text-[color:var(--text)] transition-colors hover:bg-[color:var(--surface-high)]",
+                          "grid w-full cursor-pointer gap-1.5 rounded-[10px] border border-[color:var(--outline)] bg-[color:var(--surface-lowest)] p-3 text-left text-[color:var(--text)] transition-colors hover:bg-[color:var(--surface-high)]",
                           selectedFilePath === result.path && "selected"
                         )}
                       onClick={() => onSelect(result.relative_path)}
@@ -236,7 +236,7 @@ export function SecondarySidebar({
                     key={file.path}
                     type="button"
                     className={clsx(
-                      "flex min-h-[var(--row-height)] w-full items-center gap-2.5 rounded-r-[6px] bg-transparent px-[var(--panel-padding)] py-1.5 text-left text-[color:var(--text-muted)] transition-colors hover:bg-[color:var(--surface-high)] hover:text-[color:var(--text)]",
+                      "flex min-h-[var(--row-height)] w-full cursor-pointer items-center gap-2.5 rounded-r-[6px] bg-transparent px-[var(--panel-padding)] py-1.5 text-left text-[color:var(--text-muted)] transition-colors hover:bg-[color:var(--surface-high)] hover:text-[color:var(--text)]",
                       selectedFilePath === file.path &&
                         "bg-[color:color-mix(in_srgb,var(--surface-highest)_88%,transparent)] text-[color:var(--text)] shadow-[inset_2px_0_0_var(--indigo)]"
                     )}

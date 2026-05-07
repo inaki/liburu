@@ -125,7 +125,7 @@ export function SettingsDialog({
               <div className="flex items-center gap-3">
                 <button
                   type="button"
-                  className="grid h-12 w-12 place-items-center overflow-hidden rounded-[12px] border border-[color:var(--outline)] bg-[color:var(--surface-low)] text-[color:var(--indigo)] transition-[border-color,background-color,transform] hover:-translate-y-px hover:border-[color:var(--outline-strong)] hover:bg-[color:var(--surface-lowest)] focus-visible:outline-none"
+                  className="grid h-12 w-12 cursor-pointer place-items-center overflow-hidden rounded-[12px] border border-[color:var(--outline)] bg-[color:var(--surface-low)] text-[color:var(--indigo)] transition-[border-color,background-color,transform] hover:-translate-y-px hover:border-[color:var(--outline-strong)] hover:bg-[color:var(--surface-lowest)] focus-visible:outline-none"
                   onClick={onPickBrandLogo}
                   aria-label="Choose custom brand logo"
                 >
@@ -247,7 +247,7 @@ export function SettingsDialog({
                       <button
                         key={item.key}
                         type="button"
-                        className="group inline-flex items-center justify-center bg-transparent p-0 focus-visible:outline-none"
+                        className="group inline-flex cursor-pointer items-center justify-center bg-transparent p-0 focus-visible:outline-none"
                         aria-pressed={isSelected}
                         onClick={() =>
                           onUpdateSettings({

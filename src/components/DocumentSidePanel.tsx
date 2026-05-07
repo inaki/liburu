@@ -221,8 +221,8 @@ export function DocumentSidePanel({
               key={`${heading.id}-${index}`}
               type="button"
               className={index === 0
-                ? "block w-full border-l-2 border-[color:var(--indigo)] bg-transparent px-3 py-2 text-left text-[0.84rem] text-[color:var(--text)]"
-                : "block w-full border-l-2 border-transparent bg-transparent px-3 py-2 text-left text-[0.84rem] text-[color:var(--text-muted)] transition-colors hover:text-[color:var(--text)]"}
+                ? "block w-full cursor-pointer border-l-2 border-[color:var(--indigo)] bg-transparent px-3 py-2 text-left text-[0.84rem] text-[color:var(--text)]"
+                : "block w-full cursor-pointer border-l-2 border-transparent bg-transparent px-3 py-2 text-left text-[0.84rem] text-[color:var(--text-muted)] transition-colors hover:text-[color:var(--text)]"}
               onClick={() => onScrollToHeading(heading.id)}
               style={{ paddingLeft: `${(heading.level - 1) * 18 + 12}px` }}
             >
