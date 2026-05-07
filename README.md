@@ -4,6 +4,13 @@
 
 # Liburu
 
+<p align="center">
+  <a href="https://inaki.github.io/liburu/">Website</a> ·
+  <a href="https://github.com/inaki/liburu/releases">Releases</a> ·
+  <a href="https://github.com/inaki/liburu/releases/latest/download/Liburu-macOS.zip">Download macOS ZIP</a> ·
+  <a href="https://github.com/inaki/liburu/releases/latest/download/Liburu-macOS.dmg">Download macOS DMG</a>
+</p>
+
 A lightweight desktop app for browsing Markdown documentation inside real project folders.
 
 Built with `Tauri 2`, `React`, and `TypeScript`, this app lets you select a local root directory, recursively discover Markdown files, and read them in a clean, developer-focused interface with GitHub-flavored rendering and syntax highlighting.
@@ -95,8 +102,8 @@ If you want to share the app through GitHub Releases without joining the Apple D
 Current macOS release artifacts:
 
 ```bash
-src-tauri/target/release/bundle/macos/Liburu.app
-src-tauri/target/release/bundle/macos/Liburu-macOS.zip
+dist-release/Liburu-macOS.zip
+dist-release/Liburu-macOS.dmg
 ```
 
 ### Recommended GitHub Release Upload
@@ -104,6 +111,7 @@ src-tauri/target/release/bundle/macos/Liburu-macOS.zip
 Upload:
 
 - `Liburu-macOS.zip`
+- `Liburu-macOS.dmg`
 
 This is the easiest unsigned macOS artifact for users to download and install.
 
@@ -118,8 +126,8 @@ That means macOS will show a security warning on first launch.
 
 ### First Launch Instructions For Users
 
-1. Download `Liburu-macOS.zip`
-2. Unzip it
+1. Download `Liburu-macOS.zip` or `Liburu-macOS.dmg`
+2. If you used the ZIP, unzip it
 3. Move `Liburu.app` into `Applications`
 4. Right-click the app and choose `Open`
 5. Confirm the security prompt
