@@ -2,6 +2,7 @@ import clsx from "clsx";
 import { Bookmark, CalendarDays, FilePlus2, FileText, RefreshCw } from "lucide-react";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
+import { OverlayScrollContainer } from "./ui/overlay-scrollbars";
 
 type MdFile = {
   path: string;
@@ -117,8 +118,8 @@ export function SecondarySidebar({
   ].join(":");
 
   return (
-    <aside className="grid min-h-0 min-w-0 grid-rows-[minmax(0,1fr)] border-r border-[color:var(--outline)] bg-[color:var(--surface-low)]">
-      <section className="grid min-h-0 grid-rows-[auto_auto_minmax(0,1fr)_auto]">
+    <aside className="grid h-full min-h-0 min-w-0 grid-rows-[minmax(0,1fr)] overflow-hidden border-r border-[color:var(--outline)] bg-[color:var(--surface-low)]">
+      <section className="grid min-h-0 overflow-hidden grid-rows-[auto_auto_minmax(0,1fr)_auto]">
         <div className="flex items-center justify-between px-4 pb-2.5 pt-[14px] text-[0.72rem] font-bold uppercase tracking-[0.12em] text-[color:var(--text-muted)]">
           <span>Workspace Files</span>
           <div className="flex items-center gap-1.5">
@@ -168,12 +169,15 @@ export function SecondarySidebar({
           />
         </div>
 
-        <div
-          className="min-h-0 overflow-auto px-[10px] pb-[14px] outline-none"
-          role="tree"
-          tabIndex={0}
-          aria-label="Markdown files"
-          onKeyDown={onTreeKeyDown}
+        <OverlayScrollContainer
+          className="min-h-0"
+          contentClassName="px-[10px] pb-[14px] outline-none"
+          contentProps={{
+            role: "tree",
+            tabIndex: 0,
+            "aria-label": "Markdown files",
+            onKeyDown: onTreeKeyDown
+          }}
         >
           <div key={contentFadeKey} className="animate-[sidebarFade_120ms_ease-out]">
             {activePanel === "explorer" && searchQuery.trim() ? (
@@ -265,7 +269,7 @@ export function SecondarySidebar({
               </div>
             )}
           </div>
-        </div>
+        </OverlayScrollContainer>
 
         <div className="flex justify-between gap-2.5 border-t border-[color:var(--outline)] px-4 py-3 text-[0.72rem] text-[color:var(--text-muted)]">
           <span>{files.length} files found</span>

@@ -3,6 +3,7 @@ import clsx from "clsx";
 import { Pencil, Star, Warehouse } from "lucide-react";
 import { DocumentSidePanel } from "./DocumentSidePanel";
 import { PreviewToolbar } from "./PreviewToolbar";
+import { OverlayScrollContainer } from "./ui/overlay-scrollbars";
 
 const MarkdownPreview = lazy(() => import("../MarkdownPreview"));
 
@@ -184,7 +185,11 @@ export function DocumentWorkspace({
                 Loading file…
               </div>
             ) : (
-              <div className="h-full overflow-auto px-[42px] pb-[42px] pt-[18px]" ref={previewScrollRef}>
+              <OverlayScrollContainer
+                className="h-full"
+                contentClassName="px-[42px] pb-[42px] pt-[18px]"
+                contentRef={previewScrollRef}
+              >
                 <div className="mb-5 flex items-center gap-2 text-[0.74rem] text-[color:var(--text-muted)]">
                   <Warehouse className="icon h-4 w-4" />
                   <span>/</span>
@@ -224,7 +229,7 @@ export function DocumentWorkspace({
                     spellCheck={false}
                   />
                 )}
-              </div>
+              </OverlayScrollContainer>
             )
           ) : (
             <div className="grid h-full content-start justify-items-center gap-[18px] overflow-auto px-8 pb-12 pt-[84px] text-center">

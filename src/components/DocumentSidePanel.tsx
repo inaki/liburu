@@ -1,3 +1,5 @@
+import { OverlayScrollContainer } from "./ui/overlay-scrollbars";
+
 type HeadingItem = {
   id: string;
   label: string;
@@ -84,7 +86,11 @@ export function DocumentSidePanel({
         {documentPanel === "metadata" ? "Document Metadata" : "Table Of Contents"}
       </div>
       {documentPanel === "metadata" ? (
-        <div className="grid min-h-0 min-w-0 gap-2 overflow-y-auto overflow-x-hidden px-4 pb-6">
+        <OverlayScrollContainer
+          className="min-h-0"
+          contentClassName="grid min-h-full min-w-0 gap-2 px-4 pb-6"
+          options={{ overflow: { x: "hidden", y: "scroll" } }}
+        >
           <div className={metadataCardClassName}>
             <span className={metadataLabelClassName}>Project</span>
             <strong className={metadataValueClassName}>{projectName}</strong>
@@ -203,9 +209,13 @@ export function DocumentSidePanel({
               </div>
             </>
           ) : null}
-        </div>
+        </OverlayScrollContainer>
       ) : viewMode === "preview" && headings.length > 0 ? (
-        <div className="min-h-0 overflow-y-auto overflow-x-hidden px-3 pb-6">
+        <OverlayScrollContainer
+          className="min-h-0"
+          contentClassName="px-3 pb-6"
+          options={{ overflow: { x: "hidden", y: "scroll" } }}
+        >
           {headings.map((heading, index) => (
             <button
               key={`${heading.id}-${index}`}
@@ -219,7 +229,7 @@ export function DocumentSidePanel({
               {heading.label}
             </button>
           ))}
-        </div>
+        </OverlayScrollContainer>
       ) : (
         <div className="px-4 py-[18px] text-[0.84rem] text-[color:var(--text-muted)]">
           {viewMode === "source"

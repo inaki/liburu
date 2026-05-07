@@ -125,6 +125,44 @@ input {
   box-shadow: var(--panel-shadow);
 }
 
+[data-overlayscrollbars] {
+  min-height: 0;
+}
+
+.liburu-scrollbars {
+  --os-size: 10px;
+  --os-padding-perpendicular: 3px;
+  --os-padding-axis: 3px;
+  --os-track-bg: transparent;
+  --os-track-bg-hover: transparent;
+  --os-track-bg-active: transparent;
+  --os-track-border-radius: 999px;
+  --os-handle-border-radius: 999px;
+  --os-handle-bg: color-mix(in srgb, var(--outline-strong) 48%, transparent);
+  --os-handle-bg-hover: color-mix(in srgb, var(--indigo-soft) 42%, transparent);
+  --os-handle-bg-active: color-mix(in srgb, var(--indigo-soft) 58%, transparent);
+  --os-handle-interactive-area-offset: 0;
+  --os-handle-perpendicular-size: 4px;
+  --os-handle-perpendicular-size-hover: 4px;
+  --os-handle-perpendicular-size-active: 4px;
+}
+
+.liburu-scrollbars.os-scrollbar {
+  transition: opacity 120ms ease, visibility 120ms ease;
+}
+
+.liburu-scrollbars.os-scrollbar-horizontal {
+  height: 10px;
+}
+
+.liburu-scrollbars.os-scrollbar-vertical {
+  width: 10px;
+}
+
+.liburu-scrollbars .os-scrollbar-track {
+  background: transparent;
+}
+
 @keyframes sidebarFade {
   from {
     opacity: 0;

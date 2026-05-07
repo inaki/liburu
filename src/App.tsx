@@ -2343,7 +2343,7 @@ export default function App() {
             defaultSize={`${settings.sidebarSize}%`}
             minSize="18%"
             maxSize="38%"
-            className="min-w-[260px]"
+            className="min-h-0 min-w-[260px] overflow-hidden"
           >
             <SecondarySidebar
               rootPath={rootPath}
@@ -2377,7 +2377,7 @@ export default function App() {
           </ResizablePanel>
           <ResizableHandle withHandle />
           <ResizablePanel id="content" minSize="45%">
-            <div className="grid min-h-0 min-w-0 grid-rows-[56px_minmax(0,1fr)] overflow-hidden">
+            <div className="grid h-full min-h-0 min-w-0 grid-rows-[56px_minmax(0,1fr)] overflow-hidden">
               <Topbar
                 title="Liburu"
                 searchValue={searchQuery}
