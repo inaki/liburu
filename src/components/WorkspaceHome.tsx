@@ -6,6 +6,7 @@ import {
   ChevronUp,
   Folder,
   LoaderCircle,
+  PencilLine,
   Pin,
   Trash2
 } from "lucide-react";
@@ -43,13 +44,14 @@ type WorkspaceHomeProps = {
   gitInfos: Record<string, GitRepoInfo>;
   openingSpacePath: string | null;
   openingRecentNoteKey: string | null;
-  onSelectRootDirectory: () => void | Promise<void>;
+  onOpenAddSpaceDialog: () => void;
   onOpenCloneDialog: () => void;
   onCreateJournalEntry: () => void | Promise<void>;
   onCreateNote: () => void | Promise<void>;
   onCreateTemplateNote: (kind: "idea" | "meeting") => void | Promise<void>;
   onShowNotice: (message: string) => void;
   onOpenSpace: (path: string) => void | Promise<unknown>;
+  onRenameSpace: (id: string) => void;
   onTogglePinnedSpace: (id: string) => void;
   onMoveSpace: (id: string, direction: 1 | -1) => void;
   onToggleArchivedSpace: (id: string) => void;
@@ -68,13 +70,14 @@ export function WorkspaceHome({
   gitInfos,
   openingSpacePath,
   openingRecentNoteKey,
-  onSelectRootDirectory,
+  onOpenAddSpaceDialog,
   onOpenCloneDialog,
   onCreateJournalEntry,
   onCreateNote,
   onCreateTemplateNote,
   onShowNotice,
   onOpenSpace,
+  onRenameSpace,
   onTogglePinnedSpace,
   onMoveSpace,
   onToggleArchivedSpace,
@@ -116,7 +119,7 @@ export function WorkspaceHome({
           <button
             type="button"
             className="rounded-[8px] bg-[color:var(--indigo)] px-[14px] py-2.5 font-bold text-white transition hover:-translate-y-px hover:shadow-[0_10px_24px_color-mix(in_srgb,var(--indigo)_26%,transparent)]"
-            onClick={() => void onSelectRootDirectory()}
+            onClick={onOpenAddSpaceDialog}
           >
             Add Space
           </button>
@@ -168,6 +171,20 @@ export function WorkspaceHome({
                       <span>{getSpaceLabel(space)}</span>
                     </div>
                     <div className="inline-flex items-center gap-1.5">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className={utilityActionButtonClass}
+                        disabled={openingSpacePath === space.localPath}
+                        aria-label="Rename space"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          onRenameSpace(space.id);
+                        }}
+                      >
+                        <PencilLine className="icon" />
+                      </Button>
                       <Button
                         type="button"
                         variant="ghost"

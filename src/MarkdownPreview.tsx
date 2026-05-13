@@ -3,18 +3,11 @@ import remarkGfm from "remark-gfm";
 import hljs from "highlight.js/lib/common";
 import clsx from "clsx";
 import type { ReactNode } from "react";
+import { makeHeadingId, withUniqueHeadingIds } from "./lib/headings";
 
 type MarkdownPreviewProps = {
   content: string;
 };
-
-function makeHeadingId(label: string) {
-  return label
-    .toLowerCase()
-    .trim()
-    .replace(/[^\w\s-]/g, "")
-    .replace(/\s+/g, "-");
-}
 
 function getNodeText(value: ReactNode): string {
   if (typeof value === "string" || typeof value === "number") {
@@ -51,22 +44,34 @@ function parseCallout(children: ReactNode) {
 }
 
 export default function MarkdownPreview({ content }: MarkdownPreviewProps) {
+  const headingIds = withUniqueHeadingIds(
+    content
+      .split("\n")
+      .map((line) => /^(#{1,3})\s+(.+)$/.exec(line))
+      .filter((match): match is RegExpExecArray => Boolean(match))
+      .map((match) => ({ id: makeHeadingId(getNodeText(match[2].trim().replace(/\s+#+\s*$/, ""))) }))
+  ).map((heading) => heading.id);
+  let headingIndex = 0;
+
+  function getHeadingId(value: ReactNode) {
+    const nextHeadingId = headingIds[headingIndex];
+    headingIndex += 1;
+    return nextHeadingId ?? makeHeadingId(getNodeText(value));
+  }
+
   return (
     <article className="markdown-body">
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
           h1(props) {
-            const text = String(props.children);
-            return <h1 id={makeHeadingId(text)}>{props.children}</h1>;
+            return <h1 id={getHeadingId(props.children)}>{props.children}</h1>;
           },
           h2(props) {
-            const text = String(props.children);
-            return <h2 id={makeHeadingId(text)}>{props.children}</h2>;
+            return <h2 id={getHeadingId(props.children)}>{props.children}</h2>;
           },
           h3(props) {
-            const text = String(props.children);
-            return <h3 id={makeHeadingId(text)}>{props.children}</h3>;
+            return <h3 id={getHeadingId(props.children)}>{props.children}</h3>;
           },
           blockquote(props) {
             const callout = parseCallout(props.children);

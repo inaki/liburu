@@ -3,6 +3,7 @@ import { Bookmark, CalendarDays, FilePlus2, FileText, RefreshCw } from "lucide-r
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { OverlayScrollContainer } from "./ui/overlay-scrollbars";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./ui/tooltip";
 
 type MdFile = {
   path: string;
@@ -122,41 +123,58 @@ export function SecondarySidebar({
       <section className="grid min-h-0 overflow-hidden grid-rows-[auto_auto_minmax(0,1fr)_auto]">
         <div className="flex items-center justify-between px-4 pb-2.5 pt-[14px] text-[0.72rem] font-bold uppercase tracking-[0.12em] text-[color:var(--text-muted)]">
           <span>Workspace Files</span>
-          <div className="flex items-center gap-1.5">
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="h-[34px] w-[34px] rounded-[6px] text-[color:var(--text-muted)] hover:bg-[color:var(--surface-high)] hover:text-[color:var(--text)]"
-              onClick={() => void onCreateJournalEntry()}
-              disabled={!rootPath}
-              aria-label="Create journal entry"
-            >
-              <CalendarDays className="icon" />
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="h-[34px] w-[34px] rounded-[6px] text-[color:var(--text-muted)] hover:bg-[color:var(--surface-high)] hover:text-[color:var(--text)]"
-              onClick={() => void onCreateNote()}
-              disabled={!rootPath}
-              aria-label="Create note"
-            >
-              <FilePlus2 className="icon" />
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="h-[34px] w-[34px] rounded-[6px] text-[color:var(--text-muted)] hover:bg-[color:var(--surface-high)] hover:text-[color:var(--text)]"
-              onClick={() => void onRefreshScan()}
-              disabled={!rootPath || isLoadingTree}
-              aria-label="Refresh scan"
-            >
-              <RefreshCw className="icon" />
-            </Button>
-          </div>
+          <TooltipProvider>
+            <div className="flex items-center gap-1.5">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-[34px] w-[34px] rounded-[6px] text-[color:var(--text-muted)] hover:bg-[color:var(--surface-high)] hover:text-[color:var(--text)]"
+                    onClick={() => void onCreateJournalEntry()}
+                    disabled={!rootPath}
+                    aria-label="Create journal entry"
+                  >
+                    <CalendarDays className="icon" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Create journal entry</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-[34px] w-[34px] rounded-[6px] text-[color:var(--text-muted)] hover:bg-[color:var(--surface-high)] hover:text-[color:var(--text)]"
+                    onClick={() => void onCreateNote()}
+                    disabled={!rootPath}
+                    aria-label="Create note"
+                  >
+                    <FilePlus2 className="icon" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Create note</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-[34px] w-[34px] rounded-[6px] text-[color:var(--text-muted)] hover:bg-[color:var(--surface-high)] hover:text-[color:var(--text)]"
+                    onClick={() => void onRefreshScan()}
+                    disabled={!rootPath || isLoadingTree}
+                    aria-label="Refresh scan"
+                  >
+                    <RefreshCw className={clsx("icon", isLoadingTree && "animate-spin")} />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Refresh scan</TooltipContent>
+              </Tooltip>
+            </div>
+          </TooltipProvider>
         </div>
 
         <div className="px-4 pb-3">
@@ -165,6 +183,7 @@ export function SecondarySidebar({
             value={searchQuery}
             onChange={(event) => onSearchQueryChange(event.target.value)}
             placeholder="Search project..."
+            autoComplete="off"
             className="h-auto rounded-[6px] border-[color:var(--outline)] bg-[color:var(--surface-lowest)] px-3 py-2.5 text-[0.84rem]"
           />
         </div>
@@ -273,7 +292,7 @@ export function SecondarySidebar({
 
         <div className="flex justify-between gap-2.5 border-t border-[color:var(--outline)] px-4 py-3 text-[0.72rem] text-[color:var(--text-muted)]">
           <span>{files.length} files found</span>
-          <span>{isAutoRefreshing ? "Synced now" : "Local view"}</span>
+          <span>{isLoadingTree || isAutoRefreshing ? "Scanning…" : "Local view"}</span>
         </div>
       </section>
     </aside>

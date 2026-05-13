@@ -2,7 +2,7 @@ import { lazy, Suspense } from "react";
 import clsx from "clsx";
 import { Pencil, Star, Warehouse } from "lucide-react";
 import { DocumentSidePanel } from "./DocumentSidePanel";
-import { PreviewToolbar } from "./PreviewToolbar";
+import { PreviewToolbar, type ShareAction } from "./PreviewToolbar";
 import { OverlayScrollContainer } from "./ui/overlay-scrollbars";
 
 const MarkdownPreview = lazy(() => import("../MarkdownPreview"));
@@ -73,6 +73,8 @@ type DocumentWorkspaceProps = {
   onToggleMetadata: () => void;
   onDelete: () => void | Promise<void>;
   onOpenSettings: () => void;
+  onOpenZenMode: () => void;
+  shareActions: ShareAction[];
   error: string;
   isLoadingFile: boolean;
   previewScrollRef: React.RefObject<HTMLDivElement | null>;
@@ -115,6 +117,8 @@ export function DocumentWorkspace({
   onToggleMetadata,
   onDelete,
   onOpenSettings,
+  onOpenZenMode,
+  shareActions,
   error,
   isLoadingFile,
   previewScrollRef,
@@ -161,6 +165,8 @@ export function DocumentWorkspace({
         onToggleMetadata={onToggleMetadata}
         onDelete={onDelete}
         onOpenSettings={onOpenSettings}
+        onOpenZenMode={onOpenZenMode}
+        shareActions={shareActions}
       />
 
       <div className="grid min-h-0 min-w-0 grid-cols-[minmax(0,1fr)_260px] overflow-hidden max-[1200px]:grid-cols-[minmax(0,1fr)]">

@@ -21,20 +21,24 @@ import {
   Settings,
   Star,
   Trash2,
-  UserCircle2,
 } from "lucide-react";
 import { AppLogo } from "./components/AppLogo";
+import { AddSpaceDialog, type AddSpaceDialogState } from "./components/AddSpaceDialog";
 import { CloneDialog } from "./components/CloneDialog";
+import { DocumentZenDialog } from "./components/DocumentZenDialog";
 import { DocumentWorkspace } from "./components/DocumentWorkspace";
 import { NoteDialog } from "./components/NoteDialog";
 import { SecondarySidebar } from "./components/SecondarySidebar";
+import { SpaceRenameDialog, type SpaceRenameDialogState } from "./components/SpaceRenameDialog";
 import { SettingsDialog } from "./components/SettingsDialog";
-import { Topbar, topbarShareIcons } from "./components/Topbar";
+import { Topbar } from "./components/Topbar";
+import { previewToolbarShareIcons } from "./components/PreviewToolbar";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "./components/ui/resizable";
 import { WorkspaceHome } from "./components/WorkspaceHome";
 import { Input } from "./components/ui/input";
 import { Label } from "./components/ui/label";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./components/ui/tooltip";
+import { extractHeadings } from "./lib/headings";
 import { useWorkspace } from "./features/spaces/useWorkspace";
 import { DEFAULT_SPACE_EXCLUDES, getSpaceLabel, normalizeExcludePaths } from "./features/spaces/storage";
 
@@ -59,12 +63,6 @@ type VisibleTreeRow = {
   kind: "directory" | "file";
   depth: number;
   isExpanded: boolean;
-};
-
-type HeadingItem = {
-  id: string;
-  label: string;
-  level: number;
 };
 
 type SearchResult = {
@@ -562,36 +560,6 @@ function flattenVisibleTree(
   return rows;
 }
 
-function makeHeadingId(label: string) {
-  return label
-    .toLowerCase()
-    .trim()
-    .replace(/[^\w\s-]/g, "")
-    .replace(/\s+/g, "-");
-}
-
-function extractHeadings(content: string): HeadingItem[] {
-  const headings = content
-    .split("\n")
-    .map((line) => /^(#{1,3})\s+(.+)$/.exec(line))
-    .filter((match): match is RegExpExecArray => Boolean(match))
-    .map((match) => ({
-      id: makeHeadingId(match[2]),
-      label: match[2].trim(),
-      level: match[1].length
-    }));
-
-  const seen = new Map<string, number>();
-  return headings.map((heading) => {
-    const count = seen.get(heading.id) ?? 0;
-    seen.set(heading.id, count + 1);
-    return {
-      ...heading,
-      id: count === 0 ? heading.id : `${heading.id}-${count + 1}`
-    };
-  });
-}
-
 type TreeProps = {
   rows: VisibleTreeRow[];
   gitStatuses: Record<string, string>;
@@ -743,11 +711,15 @@ export default function App() {
   const [activePanel, setActivePanel] = useState<"explorer" | "bookmarks">("explorer");
   const [documentPanel, setDocumentPanel] = useState<"toc" | "metadata">("toc");
   const [viewMode, setViewMode] = useState<"preview" | "source">("preview");
+  const [isZenModeOpen, setIsZenModeOpen] = useState(false);
   const [notice, setNotice] = useState("");
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [noteDialog, setNoteDialog] = useState<NoteDialogState>(null);
+  const [addSpaceDialog, setAddSpaceDialog] = useState<AddSpaceDialogState>(null);
   const [cloneDialog, setCloneDialog] = useState<CloneDialogState | null>(null);
+  const [spaceRenameDialog, setSpaceRenameDialog] = useState<SpaceRenameDialogState>(null);
   const [notePathInput, setNotePathInput] = useState("");
+  const [spaceRenameInput, setSpaceRenameInput] = useState("");
   const [noteDirectoryInput, setNoteDirectoryInput] = useState("");
   const [noteNameInput, setNoteNameInput] = useState("");
   const [excludePathsInput, setExcludePathsInput] = useState("");
@@ -941,6 +913,14 @@ export default function App() {
   }, [noteDialog]);
 
   useEffect(() => {
+    if (!spaceRenameDialog) {
+      return;
+    }
+
+    setSpaceRenameInput(spaceRenameDialog.currentLabel);
+  }, [spaceRenameDialog]);
+
+  useEffect(() => {
     setExcludePathsInput(activeExcludePaths.join("\n"));
   }, [activeExcludePaths]);
 
@@ -1128,6 +1108,12 @@ export default function App() {
   }, [draftContent, content, selectedFile]);
 
   useEffect(() => {
+    if (!selectedFile) {
+      setIsZenModeOpen(false);
+    }
+  }, [selectedFile]);
+
+  useEffect(() => {
     if (!settings.autosave || !isDirty || !selectedFile || isSavingFile) {
       return;
     }
@@ -1152,6 +1138,42 @@ export default function App() {
     }
 
     await scanRoot(selected);
+  }
+
+  function openAddSpaceDialog() {
+    setAddSpaceDialog({ path: "", label: "" });
+  }
+
+  async function chooseAddSpaceDirectory() {
+    const selected = await open({
+      directory: true,
+      multiple: false,
+      title: "Choose a project root"
+    });
+
+    if (!selected || Array.isArray(selected)) {
+      return;
+    }
+
+    setAddSpaceDialog((current) => ({
+      path: selected,
+      label: current?.label?.trim() ? current.label : getPathLeaf(selected)
+    }));
+  }
+
+  async function handleSubmitAddSpaceDialog() {
+    if (!addSpaceDialog?.path.trim()) {
+      showNotice("Choose a folder first");
+      return;
+    }
+
+    const scanned = await scanRoot(addSpaceDialog.path.trim());
+    if (scanned.length >= 0) {
+      const createdSpaceId = `space:${addSpaceDialog.path.trim()}`;
+      renameSpace(createdSpaceId, addSpaceDialog.label);
+      setAddSpaceDialog(null);
+      showNotice("Space added");
+    }
   }
 
   async function scanRoot(
@@ -1424,20 +1446,6 @@ export default function App() {
     }
   }
 
-  function handleRefreshCurrent() {
-    if (isDirty) {
-      showNotice("Save or discard your changes before refreshing");
-      return;
-    }
-
-    if (!activeSpace?.localPath) {
-      void selectRootDirectory();
-      return;
-    }
-
-    void scanRoot(activeSpace.localPath, { preserveSelection: true, resetSearch: false });
-  }
-
   async function handleExportSpaceZip() {
     if (!rootPath) {
       showNotice("Open a space first");
@@ -1471,7 +1479,7 @@ export default function App() {
         key: "copy-file-path",
         label: "Copy file path",
         description: "Copy the current markdown file path.",
-        icon: topbarShareIcons.copy,
+        icon: previewToolbarShareIcons.copy,
         disabled: !selectedFile,
         onSelect: () => copyText(selectedFile?.path ?? "", "File path copied"),
       },
@@ -1479,7 +1487,7 @@ export default function App() {
         key: "copy-space-path",
         label: "Copy space path",
         description: "Copy the current space folder path.",
-        icon: topbarShareIcons.copy,
+        icon: previewToolbarShareIcons.copy,
         disabled: !rootPath,
         onSelect: () => copyText(rootPath, "Space path copied"),
       },
@@ -1487,7 +1495,7 @@ export default function App() {
         key: "export-markdown",
         label: "Export current markdown",
         description: "Download the current note as a markdown file.",
-        icon: topbarShareIcons.download,
+        icon: previewToolbarShareIcons.download,
         disabled: !selectedFile,
         onSelect: handleDownload,
       },
@@ -1495,7 +1503,7 @@ export default function App() {
         key: "export-space-zip",
         label: "Export space as zip",
         description: "Create a zip archive of the current space.",
-        icon: topbarShareIcons.zip,
+        icon: previewToolbarShareIcons.zip,
         disabled: !rootPath,
         onSelect: handleExportSpaceZip,
       },
@@ -1540,6 +1548,17 @@ export default function App() {
     }
 
     target.scrollIntoView({ block: "start", behavior: "smooth" });
+  }
+
+  function handleOpenZenMode() {
+    if (!selectedFile) {
+      showNotice("Open a file first");
+      return;
+    }
+
+    setViewMode("preview");
+    setDocumentPanel("toc");
+    setIsZenModeOpen(true);
   }
 
   function updateSettings(patch: Partial<AppSettings>) {
@@ -1768,12 +1787,19 @@ export default function App() {
       return;
     }
 
-    const nextLabel = window.prompt("Space label", getSpaceLabel(space));
-    if (nextLabel === null) {
+    setSpaceRenameDialog({
+      spaceId,
+      currentLabel: getSpaceLabel(space)
+    });
+  }
+
+  function handleSubmitSpaceRenameDialog() {
+    if (!spaceRenameDialog) {
       return;
     }
 
-    renameSpace(spaceId, nextLabel);
+    renameSpace(spaceRenameDialog.spaceId, spaceRenameInput);
+    setSpaceRenameDialog(null);
     showNotice("Space label updated");
   }
 
@@ -2380,12 +2406,6 @@ export default function App() {
             <div className="grid h-full min-h-0 min-w-0 grid-rows-[56px_minmax(0,1fr)] overflow-hidden">
               <Topbar
                 title="Liburu"
-                searchValue={searchQuery}
-                searchPlaceholder="Search files..."
-                onSearchChange={setSearchQuery}
-                onRefresh={handleRefreshCurrent}
-                shareActions={topbarShareActions}
-                onProfile={() => showNotice("Local-only desktop viewer")}
               />
 
               <main className="min-h-0 min-w-0 overflow-hidden">
@@ -2409,6 +2429,8 @@ export default function App() {
                   }
                   onDelete={handleDeleteCurrentFile}
                   onOpenSettings={() => setIsSettingsOpen(true)}
+                  onOpenZenMode={handleOpenZenMode}
+                  shareActions={topbarShareActions}
                   error={error}
                   isLoadingFile={isLoadingFile}
                   previewScrollRef={previewScrollRef}
@@ -2440,12 +2462,6 @@ export default function App() {
         <div className="grid min-h-0 min-w-0 grid-rows-[56px_minmax(0,1fr)] overflow-hidden">
           <Topbar
             title="Workspace Home"
-            searchValue={searchQuery}
-            searchPlaceholder="Search files..."
-            onSearchChange={setSearchQuery}
-            onRefresh={handleRefreshCurrent}
-            shareActions={topbarShareActions}
-            onProfile={() => showNotice("Local-only desktop viewer")}
           />
 
           <main className="min-h-0 min-w-0 overflow-hidden">
@@ -2460,13 +2476,14 @@ export default function App() {
               gitInfos={gitInfos}
               openingSpacePath={openingSpacePath}
               openingRecentNoteKey={openingRecentNoteKey}
-              onSelectRootDirectory={selectRootDirectory}
+              onOpenAddSpaceDialog={openAddSpaceDialog}
               onOpenCloneDialog={openCloneDialog}
               onCreateJournalEntry={handleCreateJournalEntryFromHome}
               onCreateNote={handleCreateNoteFromHome}
               onCreateTemplateNote={handleCreateTemplateNoteFromHome}
               onShowNotice={showNotice}
               onOpenSpace={handleOpenSpace}
+              onRenameSpace={handleRenameSpace}
               onTogglePinnedSpace={handleTogglePinnedSpace}
               onMoveSpace={handleMoveSpace}
               onToggleArchivedSpace={handleToggleArchivedSpace}
@@ -2511,6 +2528,14 @@ export default function App() {
         onNoteNameChange={handleNoteNameChange}
         onSubmit={handleSubmitNoteDialog}
       />
+      <AddSpaceDialog
+        addSpaceDialog={addSpaceDialog}
+        onOpenChange={(open) => !open && setAddSpaceDialog(null)}
+        onPathChange={(value) => setAddSpaceDialog((current) => (current ? { ...current, path: value } : current))}
+        onLabelChange={(value) => setAddSpaceDialog((current) => (current ? { ...current, label: value } : current))}
+        onChooseDirectory={chooseAddSpaceDirectory}
+        onSubmit={handleSubmitAddSpaceDialog}
+      />
       <CloneDialog
         cloneDialog={cloneDialog}
         onOpenChange={(open) => !open && setCloneDialog(null)}
@@ -2525,6 +2550,20 @@ export default function App() {
           setCloneDialog((current) => (current ? { ...current, directoryName: value } : current))
         }
         onSubmit={handleSubmitCloneDialog}
+      />
+      <SpaceRenameDialog
+        renameDialog={spaceRenameDialog}
+        renameInput={spaceRenameInput}
+        onOpenChange={(open) => !open && setSpaceRenameDialog(null)}
+        onRenameInputChange={setSpaceRenameInput}
+        onSubmit={handleSubmitSpaceRenameDialog}
+      />
+      <DocumentZenDialog
+        open={isZenModeOpen}
+        onOpenChange={setIsZenModeOpen}
+        selectedFile={selectedFile}
+        draftContent={draftContent}
+        headings={headings}
       />
     </div>
   );
