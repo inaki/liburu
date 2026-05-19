@@ -123,17 +123,12 @@ That means macOS will show a security warning on first launch.
 
 ### First Launch Instructions For Users
 
-1. Download `Liburu-macOS.zip`
-2. Unzip it
-3. Move `Liburu.app` into `Applications`
-4. Right-click the app and choose `Open`
-5. Confirm the security prompt
-
-If macOS still refuses to open the app after download, remove the quarantine flag once:
-
-```bash
-xattr -dr com.apple.quarantine /Applications/Liburu.app
-```
+1. Download `Liburu-macOS-vX.X.X.dmg`
+2. Open the DMG and drag `Liburu.app` into `Applications`
+3. Try to open Liburu — macOS will block it on first launch
+4. Open **System Settings → Privacy & Security** and scroll to the bottom
+5. Click **Open Anyway** next to the Liburu entry
+6. Enter your password and confirm
 
 After the first successful launch, users can open it normally.
 
