@@ -42,9 +42,23 @@ npm run tauri dev
 
 The `npm run tauri dev` command launches the desktop app with the Vite frontend and enables live reload during development. To build a production release, use `npm run tauri build`.
 
-## Testing
+## Testing & verification
 
-How to run tests and where they live.
+Liburu uses a test-driven approach to ensure the desktop application and its components function correctly across platforms. The project leverages industry-standard testing tools for both the frontend React code and the backend Rust implementation, allowing developers to validate changes before building release artifacts.
+
+Frontend tests are run using Vitest, the recommended test runner for Vite-based projects. Unit and integration tests for React components, hooks, and utility functions live in the `src/` directory alongside the source code, typically colocated with the modules they test or organized in a dedicated `tests/` subdirectory. To run the frontend test suite, execute:
+
+```bash
+npm run test
+```
+
+Backend tests for the Tauri Rust code are located in `src-tauri/src/` and use Rust's built-in testing framework. Rust tests are defined inline using `#[test]` macros or in separate test modules. Run Rust tests with:
+
+```bash
+cargo test
+```
+
+For end-to-end testing of the complete desktop application in development mode, use `npm run tauri dev` to launch the app with live reload and inspect functionality through Tauri's developer tools. Before cutting a release build, run `npm run tauri build` to verify that the full application compiles and bundles correctly for your target platform.
 
 ## Code conventions
 
