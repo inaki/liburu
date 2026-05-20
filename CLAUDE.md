@@ -6,9 +6,28 @@ This file provides guidance to CLAUDE when working with this repository.
 
 Liburu is a lightweight desktop application for browsing and managing Markdown documentation within project folders. It is designed for developers and teams who work with documentation-heavy repositories, knowledge bases, internal playbooks, and note collections. The app solves the problem of fragmented documentation viewing by providing a single, integrated interface to recursively discover, organize, and read Markdown files from any local directory with syntax highlighting, GitHub-flavored rendering, and persistent bookmarks—eliminating the need to switch between multiple tools or open files individually in an editor.
 
-## Architecture
+## Architecture & module map
 
-How the system is structured. List key modules, services, or packages.
+Liburu is organized as a Tauri desktop application with a clear separation between the backend (Rust) and frontend (React/TypeScript). The system comprises two main deployable units: the Tauri core runtime and the React web interface. The Tauri backend handles system operations like native file dialogs, directory scanning, and file I/O, while the React frontend manages the user interface, state, and Markdown rendering. Both units are developed and bundled together; the build process compiles the Rust backend and packages it with the built React assets into a single distributable desktop application for macOS, Windows, or Linux.
+
+The repository structure is organized as follows:
+
+- **`src/`** — Frontend source code
+  - `components/` — React components for the file explorer, Markdown viewer, settings panel, and UI elements
+  - `lib/` — Utility functions, hooks, and helper modules for state management and file handling
+  - `pages/` — Top-level page or layout components
+  - `App.tsx` — Main React application entry point
+  - `main.tsx` — React DOM render target
+
+- **`src-tauri/`** — Tauri backend source code
+  - `src/` — Rust source files for system operations, file scanning, and IPC command handlers
+  - `tauri.conf.json` — Tauri configuration and build settings
+
+- **`public/`** — Static assets served by Vite
+
+- **`design/`** — Design exploration assets and visual direction reference
+
+The frontend communicates with the Tauri backend through the Tauri IPC bridge, invoking Rust commands for operations like opening file dialogs, scanning directories for Markdown files, reading file contents, and managing application state persistence.
 
 ## Build / install
 
@@ -110,3 +129,35 @@ The Tauri backend exposes file system operations through secure IPC commands, al
 
 **No credentials or authentication:**
 Liburu does not require API keys, user accounts, or remote authentication. All functionality operates on user-selected local directories and persists data (recent projects, bookmarks, preferences) to the local filesystem via Tauri's storage APIs.
+
+## Directory structure
+
+The repository is organized as a Tauri desktop application with frontend and backend code separated into distinct directories. Each top-level folder serves a specific purpose in the development and build process. The structure supports both local development with live reload and production builds for macOS, Windows, and Linux.
+
+```
+liburu/
+├── src/                    React frontend source code and components
+├── src-tauri/              Tauri backend Rust code and configuration
+├── design/                 Design exploration assets and visual direction
+├── assets/                 Images, logos, and static application resources
+├── public/                 Static files served by the development server
+├── dist/                   Built frontend assets (generated during build)
+├── node_modules/           npm dependencies (generated after install)
+└── package.json            npm configuration and scripts
+```
+
+The `src/` directory contains all React and TypeScript code for the user interface, including components, pages, utilities, and hooks. The `src-tauri/` directory houses the Rust backend that handles native system operations, file I/O, and inter-process communication between the frontend and the operating system. The `design/` folder preserves design exploration work that informed the current visual implementation. During development, `npm run tauri dev` watches both directories and hot-reloads changes; during production builds, `npm run tauri build` compiles the Rust backend and bundles it with the optimized frontend assets into platform-specific installers.
+
+## Deployment / ops
+
+Liburu is distributed as a compiled desktop application binary for macOS, Windows, and Linux. The build pipeline is triggered locally using npm scripts and Tauri's CLI, which orchestrates both the Rust backend compilation and React frontend bundling before packaging the final application artifact.
+
+To build a production release, run the following command from the repository root:
+
+```bash
+npm run tauri build
+```
+
+This command compiles the Rust backend with optimizations, bundles the React frontend assets, and generates platform-specific installers and portable binaries in the `src-tauri/target/release/bundle/` directory. Each platform produces its own output format: macOS generates `.dmg` and `.app` bundles, Windows produces `.msi` and portable `.exe` files, and Linux generates `.deb` and `.AppImage` formats.
+
+Development builds are created with `npm run tauri dev`, which launches the app with live reload enabled for both the frontend and backend during active development. There is no separate staging environment; the application runs locally on the developer's machine before release builds are created. Releases are published manually by uploading compiled binaries to the GitHub Releases page, where users can download pre-built versions for their operating system.
