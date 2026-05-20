@@ -102,6 +102,7 @@ type RecentNote = {
 
 type AppSettings = {
   theme: "dark" | "light";
+  contentFontSize: number;
   brandLogoDataUrl: string;
   showToc: boolean;
   sourceWrap: boolean;
@@ -170,6 +171,7 @@ const MAX_RECENT_NOTES = 8;
 const RAIL_WIDTH = 80;
 const DEFAULT_SETTINGS: AppSettings = {
   theme: "light",
+  contentFontSize: 15,
   brandLogoDataUrl: "",
   showToc: true,
   sourceWrap: true,
@@ -890,6 +892,7 @@ export default function App() {
   useEffect(() => {
     window.localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
     document.documentElement.dataset.theme = settings.theme;
+    document.documentElement.style.setProperty("--content-font-size", `${settings.contentFontSize}px`);
   }, [settings]);
 
   useEffect(() => {

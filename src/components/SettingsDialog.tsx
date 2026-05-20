@@ -25,6 +25,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./ui/t
 
 type AppSettings = {
   theme: "dark" | "light";
+  contentFontSize: number;
   brandLogoDataUrl: string;
   showToc: boolean;
   sourceWrap: boolean;
@@ -116,6 +117,24 @@ export function SettingsDialog({
                 <SelectContent>
                   <SelectItem value="light">Light</SelectItem>
                   <SelectItem value="dark">Dark</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="grid gap-2.5 rounded-[10px] border border-[color:var(--outline)] bg-[color:var(--surface-lowest)] p-[14px]">
+              <span className="text-[color:var(--text)]">Font size</span>
+              <Select
+                value={String(settings.contentFontSize)}
+                onValueChange={(value) => onUpdateSettings({ contentFontSize: Number(value) })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select font size" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="13">Small</SelectItem>
+                  <SelectItem value="15">Medium</SelectItem>
+                  <SelectItem value="17">Large</SelectItem>
+                  <SelectItem value="20">Extra large</SelectItem>
                 </SelectContent>
               </Select>
             </div>

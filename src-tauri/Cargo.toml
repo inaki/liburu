@@ -1,6 +1,6 @@
 [package]
 name = "liburu"
-version = "0.2.2"
+version = "0.2.3"
 description = "Lightweight local Markdown project viewer"
 authors = ["Codex"]
 edition = "2021"
