@@ -121,7 +121,15 @@ This app is currently:
 
 That means macOS will show a security warning on first launch.
 
-### First Launch Instructions For Users
+### Install via Homebrew (recommended)
+
+```bash
+brew install --cask inaki/tap/liburu
+```
+
+Homebrew handles quarantine removal automatically — no security prompts.
+
+### Manual install
 
 1. Download `Liburu-macOS-vX.X.X.dmg`
 2. Open the DMG and drag `Liburu.app` into `Applications`
@@ -129,8 +137,6 @@ That means macOS will show a security warning on first launch.
 4. Open **System Settings → Privacy & Security** and scroll to the bottom
 5. Click **Open Anyway** next to the Liburu entry
 6. Enter your password and confirm
-
-After the first successful launch, users can open it normally.
 
 ### Why This Happens
 

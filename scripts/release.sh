@@ -5,6 +5,7 @@ VERSION=$(node -p "require('./package.json').version")
 TAG="v$VERSION"
 APP_BUNDLE="src-tauri/target/release/bundle/macos/Liburu.app"
 DMG_STAGE="/tmp/liburu-dmg-${VERSION}"
+HOMEBREW_TAP_DIR="/tmp/homebrew-tap-release"
 
 VERSIONED_DMG="dist-release/Liburu-macOS-${TAG}.dmg"
 VERSIONED_ZIP="dist-release/Liburu-macOS-${TAG}.zip"
@@ -44,19 +45,49 @@ gh release create "$TAG" \
   --notes "$(cat <<NOTES
 ## Liburu ${TAG}
 
-### Download
-- **DMG:** Liburu-macOS-${TAG}.dmg
+### Install via Homebrew (recommended)
+\`\`\`
+brew install --cask inaki/tap/liburu
+\`\`\`
 
-### Install on macOS
-1. Open the DMG and drag **Liburu.app** to Applications
-2. Try to open Liburu — macOS will block it on first launch
-3. Open **System Settings → Privacy & Security** and scroll to the bottom
-4. Click **Open Anyway** next to Liburu
-5. Enter your password — Liburu opens and works normally from then on
-
-> This app is unsigned. The Privacy & Security step is a one-time requirement until we add Apple code signing.
+### Manual install
+1. Download \`Liburu-macOS-${TAG}.dmg\`
+2. Open the DMG and drag **Liburu.app** to Applications
+3. Open **System Settings → Privacy & Security** → click **Open Anyway**
 NOTES
 )"
 
+echo "==> Updating Homebrew cask..."
+SHA256=$(shasum -a 256 "$VERSIONED_DMG" | awk '{print $1}')
+rm -rf "$HOMEBREW_TAP_DIR"
+git clone https://github.com/inaki/homebrew-tap.git "$HOMEBREW_TAP_DIR"
+cat > "$HOMEBREW_TAP_DIR/Casks/liburu.rb" <<CASK
+cask "liburu" do
+  version "${VERSION}"
+  sha256 "${SHA256}"
+
+  url "https://github.com/inaki/liburu/releases/download/v#{version}/Liburu-macOS-v#{version}.dmg"
+  name "Liburu"
+  desc "Lightweight local Markdown project viewer"
+  homepage "https://inaki.github.io/liburu/"
+
+  app "Liburu.app"
+
+  zap trash: [
+    "~/Library/Application Support/ai.jerni.liburu",
+    "~/Library/Preferences/ai.jerni.liburu.plist",
+    "~/Library/Saved Application State/ai.jerni.liburu.savedState"
+  ]
+end
+CASK
+cd "$HOMEBREW_TAP_DIR"
+git add Casks/liburu.rb
+git commit -m "Update Liburu cask to ${TAG}"
+git push
+cd -
+rm -rf "$HOMEBREW_TAP_DIR"
+
 echo "==> Done. Release ${TAG} published."
 echo "    https://github.com/inaki/liburu/releases/tag/${TAG}"
+echo ""
+echo "    Install: brew install --cask inaki/tap/liburu"
