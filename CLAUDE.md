@@ -175,3 +175,16 @@ npm run tauri build
 This command compiles the Rust backend with optimizations, bundles the React frontend assets, and generates platform-specific installers and portable binaries in the `src-tauri/target/release/bundle/` directory. Each platform produces its own output format: macOS generates `.dmg` and `.app` bundles, Windows produces `.msi` and portable `.exe` files, and Linux generates `.deb` and `.AppImage` formats.
 
 Development builds are created with `npm run tauri dev`, which launches the app with live reload enabled for both the frontend and backend during active development. There is no separate staging environment; the application runs locally on the developer's machine before release builds are created. Releases are published manually by uploading compiled binaries to the GitHub Releases page, where users can download pre-built versions for their operating system.
+
+## Domain glossary
+
+Liburu uses domain-specific terminology throughout its codebase and documentation. Understanding these terms ensures consistent interpretation across the frontend and backend systems.
+
+- **Root folder** — The top-level local directory selected by the user through the native file dialog; serves as the starting point for recursive file discovery and all subsequent scans.
+- **Project** — A saved reference to a root folder, including its path and metadata such as last-opened timestamp and bookmarked files; persisted locally for quick access.
+- **Markdown file** — Any file with a `.md` or `.markdown` extension discovered during directory traversal; treated as browsable content within the app.
+- **File explorer** — The hierarchical sidebar component that displays the directory structure and discovered Markdown files in a tree view for navigation.
+- **Preview mode** — The default rendering state where Markdown content is rendered as formatted HTML with GitHub-flavored syntax and code highlighting.
+- **Source mode** — An alternate view that displays raw, unrendered Markdown source text for editing or inspection purposes.
+- **Bookmark** — A user-marked Markdown file stored in local persistent state; allows quick re-access to frequently referenced documentation.
+- **IPC** — Inter-process communication channel between the React frontend and Tauri backend; enables command invocation for file dialogs, directory scanning, and I/O operations.
