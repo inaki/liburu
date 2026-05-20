@@ -73,6 +73,11 @@ cask "liburu" do
 
   app "Liburu.app"
 
+  postflight do
+    system_command "/usr/bin/xattr",
+                   args: ["-dr", "com.apple.quarantine", "#{appdir}/Liburu.app"]
+  end
+
   zap trash: [
     "~/Library/Application Support/ai.jerni.liburu",
     "~/Library/Preferences/ai.jerni.liburu.plist",
